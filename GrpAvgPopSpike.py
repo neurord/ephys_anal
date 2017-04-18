@@ -22,15 +22,17 @@ os.chdir(home)
 #subdir="NicoleFields/"
 subdir="Pickle\\"
 #VARIABLE MAY CHANGE; 15min baseline plus 30min follow-up is 90sweeps:
-summarytime=[25,30]
-minimum_sweeps=45      # <<<<<<<<<<<<<<<<<< units are minutes
-slope_std_factor=2     #<<<<<<<<<<<<<<<<<<< if slope +/- slope_std_factor*std includes 0, trace is valid, else slope too large
+sample_times=[25,30]
+minimum_sweeps=45      # <<<<<<<<<< units are minutes
+slope_std_factor=2     #<<<<<<<<<<< if slope +/- slope_std_factor*std includes 0, trace is valid, else slope too large
                        #Sarah actually allows a negative slope with potentiation and vice versa
 slope_threshold=0.008  #0.008 gives good no-stim control
 ########## Specify separation variables for generating means to plot in Igor	
 ###For binary separation, list only one value; for > 2 values, must list each one
 sepvarlist=[['theta',[0, 5.0, 10.5]],['region',['DM']],['sex',['F','Fe','M']]]#,['age',[50]]]
 #sepvarlist=[['theta',[0, 5.0, 10.5]],['drug', ['none']]]#,['age',[50]]]
+
+
 pattern = subdir+'*.pickle'
 outfnames = sorted(glob.glob(pattern))
 print "NUM FILES (before selection):", len(outfnames)
@@ -190,9 +192,9 @@ else:
             np.savetxt(f,outputdata, fmt='%7.5f',delimiter='   ') #'%7.4f' = format is float with 7 characters, 4 after decimal
             f.close()
             #print some summary information, 25 min = 40 samples
-            firstpt=np.min(np.where(minutes_grp[gnum]>summarytime[0]))
-            lastpt=np.max(np.where(minutes_grp[gnum]<summarytime[1]))
-            print 'Grp',filenm[gnum], 'at', summarytime,'minutes: ', np.mean(avgpopspikenorm_grp[gnum][firstpt:lastpt]),' n=',newcount_grp[gnum][0]
+            firstpt=np.min(np.where(minutes_grp[gnum]>sample_times[0]))
+            lastpt=np.max(np.where(minutes_grp[gnum]<sample_times[1]))
+            print 'Grp',filenm[gnum], 'at', sample_times,'minutes: ', np.mean(avgpopspikenorm_grp[gnum][firstpt:lastpt]),' n=',newcount_grp[gnum][0]
             print 'SD', np.mean(stderrpopspikenorm_grp[gnum][firstpt:lastpt])*np.sqrt(newcount_grp[gnum][0])
         ########## End of data separation
         ######## Plot results

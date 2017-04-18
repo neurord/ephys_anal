@@ -33,7 +33,7 @@ slope_std_factor=2 #<<<<<<<<<<<<<<<<<<< if slope +/- slope_std_factor*std exclud
 
 #####parameters that you may want to tweak ###############
 #If induction is not during the last pause in recording, you need to fix some of the code below
-first_peak_end=250      #do not look past this point for the 1st popspike (maybe there is a second one that we will look for later).
+first_peak_end_fraction=0.625      #do not look past this fraction of trace for the 1st popspike (maybe there is a second one that we will look for later).
 artifact_window=0.5     #if artifact is not found in first artifact_window of trace, there is problem
 baseline_minutes=15
 tracesPerMinute=2      #how often you stimulate and sample per minute
@@ -86,6 +86,7 @@ with open(filename[0],'r') as f:
         if "Samples" in line:
             break
 timepoints_per_trace=int(line.split()[1])
+first_peak_end=int(first_peak_end_fraction*timepoints_per_trace)
 print "timepoints_per_trace",timepoints_per_trace
 latest_artifact=artifact_window*timepoints_per_trace 
 data = np.loadtxt(filename[0], skiprows=24) 
