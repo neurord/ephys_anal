@@ -9,7 +9,8 @@ ARGS="filename sex age drugs frequency region"
 
 To modify the information stored with experiments, modify parse_args in pop_spike_utilities.py
 
-Adjustable parameters include: 
+Adjustable parameters include:
+
 A. datadir: full path to location of data files
 B. outputdir: relative path, relative to python program, for output files,
 C. artdecaytime: artifact decay time - if not long enough, then the artifact may be detected as one of the response measures.  If too long, could also miss one of the response measures.
@@ -37,12 +38,14 @@ ARGS="20-Aug-2015_SLH001 M 29 heat nodrug 5.4 12 A2a+ MSN non 0 soma APs"
 To modify the information stored with experiments, modify parse_args in pop_spike_utilities.py
 
 Additional parameters (common to all experiments):
+
 a. hyperstart,hyperend, Iaccess: start time, end time and current amplitude of hyperpolarizing pulses injected to monitor series resistance
 b. basestarttime, baseendtime: time period prior to electrical stimulation to use for membrane potential for calculating PSP amplitude
 c. dt: interval between samples (1/sampling frequency)
 d. inputDir: name of directory containing datafiles for analysis.
 
 File locations:
+
 a. FileDir=inputDir+args.experiment+"_Waves/" specifies location of data files for an individual experiment
 b. outputDir: name of directory to write output files
 c. filenameending: text string appended to name of experiment which specifies wildcard pattern filenames: pattern=FileDir+"W"+args.experiment+filenameending
@@ -56,6 +59,7 @@ A. a list of experimental parameters and summary measures, 1 line per experiment
 B. a file of mean, stdev, and N for each group to be used to generate publication quality figures.
    
 Adjustable parameters include:
+
 a. subdir: full path to location of pickle files (i.e., output files from PopSpikeAnal.py)
 slope_std_factor: Currently not used.  Could be used to excludes data files in which baseline slope exceeds +/- this factor times the std of the fit to the baseline.  Instead, we are using ...
 b. slope_threshold: exclude data files in which baseline slope exceeds +/- this value.
@@ -76,6 +80,7 @@ A. a list of experimental parameters and summary measures, 1 line per experiment
 B. a file of mean, stdev, and N for each group to be used to generate publication quality figures.
    
 Adjustable parameters include:
+
 a. subdir: full path to location of pickle files (i.e., output files from PSPanalSA.py)
 b. sepvarlist: A list of variables and values to used to separate all the data into groups - see explanation under GrpAvgPopSpike.py
 c. meanstart,meanend: trace numbers corresponding to 15-20 min after induction
