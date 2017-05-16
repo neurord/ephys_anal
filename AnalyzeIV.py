@@ -11,8 +11,8 @@ import sys
 #The directory names where input data are stored (subdir) and pickle files are written (outdir)
 experType="crv"
 dirnameEnding="ivif_Waves"
-subdir='IFcrv/'
-outdir='PickleIF/'
+subdir='../IFcrv/'
+outdir='../'#'PickleIF/'
 #bad_traces=([5,1],[5,2],[5,3],[5,4],[5,5])
 #bad_traces=([5,6])
 #duration of current injection
