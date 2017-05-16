@@ -9,7 +9,7 @@ ARGS="filename sex age drugs frequency region"
 
 To modify the information stored with experiments, modify parse_args in pop_spike_utilities.py
 
-Adjustable parameters include 
+Adjustable parameters include: 
 A. datadir: full path to location of data files
 B. outputdir: relative path, relative to python program, for output files,
 C. artdecaytime: artifact decay time - if not long enough, then the artifact may be detected as one of the response measures.  If too long, could also miss one of the response measures.
@@ -37,7 +37,6 @@ ARGS="20-Aug-2015_SLH001 M 29 heat nodrug 5.4 12 A2a+ MSN non 0 soma APs"
 To modify the information stored with experiments, modify parse_args in pop_spike_utilities.py
 
 Additional parameters (common to all experiments):
-
 a. hyperstart,hyperend, Iaccess: start time, end time and current amplitude of hyperpolarizing pulses injected to monitor series resistance
 b. basestarttime, baseendtime: time period prior to electrical stimulation to use for membrane potential for calculating PSP amplitude
 c. dt: interval between samples (1/sampling frequency)
