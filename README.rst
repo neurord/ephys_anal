@@ -1,6 +1,8 @@
+==========
 ephys anal
-
-1. PopSpikeAnal.py
+==========
+**1. PopSpikeAnal.py**
+------------------------
 Analyzes individual experiments in which population spikes are recorded before (baseline) and after (follow-up) LTP induction.  The LTP induction is detected automatically as the last gap between pop-spikes greater than induction_gap (e.g. 32 sec, assuming pop-spikes measured once per 30 sec).  Assumes input data is a text file output from labview, in which there are 24 header lines, and the remaining data are in two columns: time and voltage.  program takes the single voltage column and cuts it into N traces of K samples, where samples_per_trace is read from one of the header lines.
 
 From within python, provide information on experiments, such as filename that data is in, sex, age, any drugs, brain region, and frequency of induction protocol:
@@ -9,7 +11,7 @@ ARGS="filename sex age drugs frequency region"
 
 To modify the information stored with experiments, modify parse_args in pop_spike_utilities.py
 
-Adjustable parameters include:
+*Adjustable parameters include:*
 
 A. datadir: full path to location of data files
 B. outputdir: relative path, relative to python program, for output files,
@@ -23,10 +25,12 @@ I. first_peak_end_fraction: the latest within the trace (units are fraction of t
 J. slope_std_factor: prints a warning of the baseline slope exceeds +/- this factor times the std of the fit to the baseline.  Make this value large to disable this feature.
 K. big_popspike_factor: prints a warning if popspike is greater than this times the mean baseline amplitude.  Also, stores np.nan instead of the amplitude.  Make this value very large (e.g. 10-100) to disable this function
 
-2. pop_spike_utilities.py
+**2. pop_spike_utilities.py**
+--------------------------------
 Used by PopSpikeAnal.py.  Contains function for plotting the data.  Each trace is plotted along with location of the peak, location of positive peak, location where search for the pop-spike and fiber volley begin.  This allows user to verify the data extraction, and determine if parameters such as artifact decay time need to be adjusted.
 
-3. PSPanalSA.py 
+**3. PSPanalSA.py**
+------------------------
 analyze post-synaptic potentials before and after LTP induction from whole cell patch clamp experiments
 
 Assumes input data are a set of files in igor binary
@@ -37,28 +41,29 @@ ARGS="20-Aug-2015_SLH001 M 29 heat nodrug 5.4 12 A2a+ MSN non 0 soma APs"
 
 To modify the information stored with experiments, modify parse_args in pop_spike_utilities.py
 
-Additional parameters (common to all experiments):
+*Additional parameters (common to all experiments):*
 
 a. hyperstart,hyperend, Iaccess: start time, end time and current amplitude of hyperpolarizing pulses injected to monitor series resistance
 b. basestarttime, baseendtime: time period prior to electrical stimulation to use for membrane potential for calculating PSP amplitude
 c. dt: interval between samples (1/sampling frequency)
 d. inputDir: name of directory containing datafiles for analysis.
 
-File locations:
+*File locations:*
 
 a. FileDir=inputDir+args.experiment+"_Waves/" specifies location of data files for an individual experiment
 b. outputDir: name of directory to write output files
 c. filenameending: text string appended to name of experiment which specifies wildcard pattern filenames: pattern=FileDir+"W"+args.experiment+filenameending
 
-4. GrpAvgPopSpike.py
+**4. GrpAvgPopSpike.py**
+------------------------
 Analyzes groups of experiments - the output of PopSpikeAnal.py
-Generates graphs and two types of output data.
+Generates graphs and two types of output data:
 
 A. a list of experimental parameters and summary measures, 1 line per experiment, to be used for statistical anaysis
    
 B. a file of mean, stdev, and N for each group to be used to generate publication quality figures.
    
-Adjustable parameters include:
+*Adjustable parameters include:*
 
 A. subdir: full path to location of pickle files (i.e., output files from PopSpikeAnal.py)
 slope_std_factor: Currently not used.  Could be used to excludes data files in which baseline slope exceeds +/- this factor times the std of the fit to the baseline.  Instead, we are using ...
@@ -68,19 +73,17 @@ D. sample_times: set of follow-up times (in minutes) for providing mean plastici
 E. sepvarlist: A list of variables and values to used to separate all the data into groups.
 E.g.[ ['sex',['F','Fe','M']], ['drug', ['none']] ] is a list with two separation variables: sex, which can have one of 3 values, and drug, which could have multiple values, but by indicating a single value, the code will give two drug groups: none, and everything else. The order of specifying variables only matters to how the plots are grouped.  
 
-6. GrpPlotUtil.py
-Used by GrpAvgPopSpike.py and by GrpAvgPatchMultiGroups.py 
-
-5. GrpAvgPatchMultiGroups.py
+**5. GrpAvgPatchMultiGroups.py**
+---------------------------------
 Analyzes groups of experiments - Similar to GrpAvgPopSpike, but uses output of PSPanalSA.py
 
-Generates graphs and two types of output data.
+Generates graphs and two types of output data:
 
 A. a list of experimental parameters and summary measures, 1 line per experiment, to be used for statistical anaysis
   
 B. a file of mean, stdev, and N for each group to be used to generate publication quality figures.
    
-Adjustable parameters include:
+*Adjustable parameters include:*
 
 A. subdir: full path to location of pickle files (i.e., output files from PSPanalSA.py)
 B. sepvarlist: A list of variables and values to used to separate all the data into groups - see explanation under GrpAvgPopSpike.py
@@ -88,27 +91,36 @@ C. meanstart,meanend: trace numbers corresponding to 15-20 min after induction
 
 This program was used in Hawes et al. J Physiology 2017 for analysis of data.
 
-7. TBSanal.py
-   
-8. AnalyzeIV.py
+**6. GrpPlotUtil.py**
+-------------------------
+Used by GrpAvgPopSpike.py and by GrpAvgPatchMultiGroups.py 
+
+**7. TBSanal.py**
+-------------------------
+
+**8. AnalyzeIV.py**
+-------------------------
 analyzes IF and IV curves from whole cell patch clamp experiments
 assumes IF is separate set of curves from IV.  Must specify (or use default values) or starting current injection and increment.  Must specify (or use default values) for time of current injection onset and duration of current injection.
 
-8. HVAanal.py 
+**9. HVAanal.py**
+-------------------------
 analyze two pulse voltage clamp experiments from whole cell patch clamp experiments to determine calcium dependent inactivation of calcium currents.
 
 Assumes input data is are a set of files in igor binary
 
 This program was used in Evans et al. J Neurophysiology 2015 for analysis of data.
 
-9. RampAnal.py 
+**10. RampAnal.py**
+-------------------------
 analyze ramp voltage clamp from whole cell patch clamp experiments in order to extract leak conductance
 
 Assumes input data is are a set of files in igor binary
 
 This program was used in Evans et al. J Neurophysiology 2015 for analysis of data.
 
-10. SASdataIF.py
+**11. SASdataIF.py**
+-------------------------
 
 These python programs contain utilities for spike dection and characterization
 compat.py
