@@ -65,13 +65,12 @@ B. a file of mean, stdev, and N for each group to be used to generate publicatio
    
 *Adjustable parameters include:*
 
-A. subdir: full path to location of pickle files (i.e., output files from PopSpikeAnal.py)
+1. subdir: full path to location of pickle files (i.e., output files from PopSpikeAnal.py)
 slope_std_factor: Currently not used.  Could be used to excludes data files in which baseline slope exceeds +/- this factor times the std of the fit to the baseline.  Instead, we are using ...
-B. slope_threshold: exclude data files in which baseline slope exceeds +/- this value.
-C. minimum_sweeps: Excludes data files which have insufficient traces following the induction.  This number is total number of minutes, which user calculates from baseline_minutes + follow-up minutes
-D. sample_times: set of follow-up times (in minutes) for providing mean plasticity change
-E. sepvarlist: A list of variables and values to used to separate all the data into groups.
-E.g.[ ['sex',['F','Fe','M']], ['drug', ['none']] ] is a list with two separation variables: sex, which can have one of 3 values, and drug, which could have multiple values, but by indicating a single value, the code will give two drug groups: none, and everything else. The order of specifying variables only matters to how the plots are grouped.  
+2. slope_threshold: exclude data files in which baseline slope exceeds +/- this value.
+3. minimum_sweeps: Excludes data files which have insufficient traces following the induction.  This number is total number of minutes, which user calculates from baseline_minutes + follow-up minutes
+4. sample_times: set of follow-up times (in minutes) for providing mean plasticity change
+5. sepvarlist: A list of variables and values to used to separate all the data into groups. E.g.[ ['sex',['F','Fe','M']], ['drug', ['none']] ] is a list with two separation variables: sex, which can have one of 3 values, and drug, which could have multiple values, but by indicating a single value, the code will give two drug groups: none, and everything else. The order of specifying variables only matters to how the plots are grouped.  
 
 **5. GrpAvgPatchMultiGroups.py**
 ---------------------------------
