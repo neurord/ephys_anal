@@ -1,18 +1,23 @@
-#from within python, type 
+#ARGS are optional, see ignore = for how they are used
+#if using ARGS, from within python, type 
 #ARGS="-bt heat -Rt 4.5 -Rtmax 6.8 -geno D1+ -cell MSN"
 #execfile ('GrpAvgPatchMultiGroups.py')
 #from outside python, type
 #python GrpAvg.py -s M -p 21 -bt RT
 
+#Needs to be updated to use plot_groups from grp_utl
+#Needs to be updated (along with PSPanalSA.py) to use common argparser
+
 import os
 print os.getcwd()
-#this is subdir for output data, relative to ~sarah
-subdir="Pickle/"
-pattern = subdir+'*wcDATA.pickle_new'
-#no matter where I was when I started python, go to ~sarah to begin:
+#home is location of this file and GrpPlotUtil
 home="/home/sarah/"
 #home="/home/avrama/EphysDataAnal/"
 os.chdir(home)
+
+#this is subdir for output data (from PSPanalSA.py), relative to home
+subdir="Pickle/"
+pattern = subdir+'*wcDATA.pickle_new'
 
 import numpy as np
 import sys  
@@ -25,11 +30,10 @@ from matplotlib import pyplot
 from matplotlib import gridspec
 
 printinfo=0
-#VARIABLE MAY CHANGE; 5min baseline (10) plus 20min (40) follow-up is 50sweeps:
-#print some summary information, 20 min = 50 post samples
-meanstart=40
-meanend=50
-minsweeps=50        # <<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<
+#VARIABLE MAY CHANGE:
+meanstart=40   #trace number corresponding to 15 min after induction
+meanend=50     #trace number corresponding to 20 min after induction
+minsweeps=50        # minimum sweeps for completed experiment
 normpeakthresh=4	#if higher than this, then AP must have occured, exclude from mean
 ########## Specify separation variables for generating means to plot in Igor	
 ###### This first param in the list will be used to plot two different groups, averaged over the remaining params
@@ -69,7 +73,7 @@ except NameError: #NameError refers to an undefined variable (in this case ARGS)
 
 try:
 	args = parser.parse_args(commandline) # maps arguments (commandline) to choices, and checks that they match
-			# Why isnt "parser.parse_args" replacable with "actual." ? <<<<<<<<<<<<<<<<<###########
+			
 except SystemExit:
 	if do_exit:
 		raise

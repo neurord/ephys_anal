@@ -1,13 +1,11 @@
-#This program reads in EPSP traces from plasticity experiments
-#extracts baseline values, peak PSP, etc
-#input is data and exp# for a single experiment, for example "12-Jun-2014_SLH006"
+#This program reads in EPSP traces from plasticity experiments, both before and after plasticity induction
+#extracts series resistance, membrane potential, PSP amplitude, for a single experiment
+#input is data and exp# for a single experiment, for example "12-Jun-2014_SLH006", with traces in that subdirectory
 #input arguments by defining ARGS as a single string (dividing arguments with spaces)
-#outputs include one file with each column containing a separate measure (for IGOR)
-#outputs include dictionary housing exp features used to select like exps for analysis (temp, age, etc)
-#Can use Zbyszek's python program to read in IF or IV curves and extract spike measures
-#run the program from within python by typing: execfile('PSPanalSA.py')
 #ARGS="20-Aug-2015_SLH001 M 29 heat nodrug 5.4 12 A2a+ MSN non 0 soma APs" for example
-
+#run the program from within python by typing: execfile('PSPanalSA.py')
+#outputs consist of pickle file with dictionary containing input arguments and extracted features
+#outputs also include a text file of TMP, PSP amplitude, hyperpolarization during current injection versus trace ID (to plot single experiment result)
 import os
 import pylab
 from igor import binarywave
@@ -19,24 +17,27 @@ import glob
 import argparse
 import pickle
 
-#####parameters I may want to tweak on viewing plot of data###############
+#####parameters you may want to tweak on viewing plot of data###############
 
-PSPstart=0.262#generally good here-------- 
-PSPend=0.285 #&&&&<<<---------MANUALLY define ... generally 0.265-0.28
+PSPstart=0.262 #earliest time a PSP could be detected
+PSPend=0.285 #expected end of PSP, generally 0.265-0.28
 peak2exists=True #&&&&<<<----MANUALLY define, True if compound/multi EPSP
 
+pp2exists= False #ALWAYS FALSE... throwback to when test pulses were 50ms-spaced pairs
+PP2start=0.3     #------------------------------------MANUALLY define
 
-pp2exists= False#ALWAYS FALSE... throwback to when test pulses were 50ms-spaced pairs
-PP2start=0.3      #------------------------------------MANUALLY define
-
-basestarttime=0.15  
+basestarttime=0.15 #baseline period for determining membrane potential
 baseendtime=0.25
-hyperstart=0.045    #10 - 60 ms, last 20 ms is steady state          
+hyperstart=0.045    # hyperpolarizing pulses injected 10 - 60 ms to monitor series resistance, last 20 ms is steady state
 hyperend=0.065
-dt=100e-6       
+Iaccess=50e-12 # amplitude of current injection (-50 pA) used to monitor series R
+dt=100e-6       # interval between samples (1/sampling frequency)
 plotstart=0 # change to "baseendtime/dt" to zoom in on EPSP in plots
-Iaccess=50e-12 # -50 pA current injected to monitor series R
 
+#Looks for files using pattern to find all files within a single exper
+outputDir="Pickle/"
+filenameending="_SLH_1_*_*_1p1.ibw"
+inputDir="PatchData/"
 ##########################################################################
 ######################### Experiment type specific parameters
 
@@ -69,7 +70,7 @@ except NameError: #undefined variable (in this case ARGS)
 
 try:
 	args = parser.parse_args(commandline) # maps arguments (commandline) to choices, and checks for validity of choices. see args.sex,age,etc.. printed below
-#if arguements are mapped incorrectly, python wants to exit, but the next line says "don't", instead check whether we are in python (do_exit=False) then don't exit, just give us a warning
+#if arguments are mapped incorrectly, python wants to exit, but the next line says "don't", instead check whether we are in python (do_exit=False) then don't exit, just give us a warning
 except SystemExit:
 	if do_exit:
 		raise # raise the exception above (SystemExit) b/c none specified here
@@ -90,16 +91,6 @@ print "lightlevel={}".format(args.lightlevel)
 print "depol={}".format(args.depol)
 print "TBSAP={}".format(args.TBSAP)
 
-#Looks for files using pattern to find all files w/in a single exper
-outputDir="Pickle/"
-filenameending="_SLH_1_*_*_1p1.ibw"
-inputDir="PatchData/"
-#To re-analyze slope from all experiments, 1st use glob on FileDir
-#2nd, read in pickel file for the parameters
-#3rd, add in analysis of slope
-#4th, resave with slope
-#Can the computer detect existance of 2nd peak?
-#Implement stuff avrama had tried, and plot which has 2nd peak and which doesn't, for sarah to view
 FileDir=inputDir+args.experiment+"_Waves/"
 parts=args.experiment.split('-')
 pattern=FileDir+"W"+parts[0]+"_"+parts[1]+"_"+parts[2].split("_")[0]+filenameending
@@ -108,7 +99,6 @@ filenames = glob.glob(pattern)
 if (len(filenames)==0):
 	print "You mistyped the filenames. Python found no such files:"
 	pp(filenames)
-
 
 #Below puts your files from common exper in order by PGF and trace
 def sortorder(fname):
@@ -152,8 +142,6 @@ hyperdelta=[]
 AccR=[]
 
 tracestring=[]
-
-
 
 fig=pyplot.figure(figsize=(6,6))
 fig.canvas.set_window_title('Experiment '+args.experiment)
@@ -231,7 +219,7 @@ for fileindex,filename in enumerate(filenames[:goodtraces]):
         hyperdelta.append(RMP[fileindex]-hypervm[fileindex])
 	AccR.append(hyperdelta[fileindex]/Iaccess)
     	parts = filename.split('_')
-        tracestring.append(parts[-3]+"_"+parts[-2]+"   ") #extra spaces forces column_stack to use more significant figures when converting floats to string. There should be a better way<<<<<<<<<<<<<<<<<<<<<<<<<<<<<< ?
+        tracestring.append(parts[-3]+"_"+parts[-2]+"   ") #extra spaces forces column_stack to use more significant figures when converting floats to string. 
 
         #print filename.split('/')[1],tracestring[fileindex],RMP[fileindex],peakvm[fileindex]
         #Optionally, plot the data to verify the results
