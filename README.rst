@@ -60,30 +60,31 @@ B. a file of mean, stdev, and N for each group to be used to generate publicatio
    
 Adjustable parameters include:
 
-a. subdir: full path to location of pickle files (i.e., output files from PopSpikeAnal.py)
+A. subdir: full path to location of pickle files (i.e., output files from PopSpikeAnal.py)
 slope_std_factor: Currently not used.  Could be used to excludes data files in which baseline slope exceeds +/- this factor times the std of the fit to the baseline.  Instead, we are using ...
-b. slope_threshold: exclude data files in which baseline slope exceeds +/- this value.
-c. minimum_sweeps: Excludes data files which have insufficient traces following the induction.  This number is total number of minutes, which user calculates from baseline_minutes + follow-up minutes
-d. sample_times: set of follow-up times (in minutes) for providing mean plasticity change
-e. sepvarlist: A list of variables and values to used to separate all the data into groups.
+B. slope_threshold: exclude data files in which baseline slope exceeds +/- this value.
+C. minimum_sweeps: Excludes data files which have insufficient traces following the induction.  This number is total number of minutes, which user calculates from baseline_minutes + follow-up minutes
+D. sample_times: set of follow-up times (in minutes) for providing mean plasticity change
+E. sepvarlist: A list of variables and values to used to separate all the data into groups.
 E.g.[ ['sex',['F','Fe','M']], ['drug', ['none']] ] is a list with two separation variables: sex, which can have one of 3 values, and drug, which could have multiple values, but by indicating a single value, the code will give two drug groups: none, and everything else. The order of specifying variables only matters to how the plots are grouped.  
 
 6. GrpPlotUtil.py
 Used by GrpAvgPopSpike.py and by GrpAvgPatchMultiGroups.py 
 
 5. GrpAvgPatchMultiGroups.py
-Aanalyzes groups of experiments - Similar to GrpAvgPopSpike, but uses output of PSPanalSA.py
+Analyzes groups of experiments - Similar to GrpAvgPopSpike, but uses output of PSPanalSA.py
 
 Generates graphs and two types of output data.
+
 A. a list of experimental parameters and summary measures, 1 line per experiment, to be used for statistical anaysis
   
 B. a file of mean, stdev, and N for each group to be used to generate publication quality figures.
    
 Adjustable parameters include:
 
-a. subdir: full path to location of pickle files (i.e., output files from PSPanalSA.py)
-b. sepvarlist: A list of variables and values to used to separate all the data into groups - see explanation under GrpAvgPopSpike.py
-c. meanstart,meanend: trace numbers corresponding to 15-20 min after induction
+A. subdir: full path to location of pickle files (i.e., output files from PSPanalSA.py)
+B. sepvarlist: A list of variables and values to used to separate all the data into groups - see explanation under GrpAvgPopSpike.py
+C. meanstart,meanend: trace numbers corresponding to 15-20 min after induction
 
 This program was used in Hawes et al. J Physiology 2017 for analysis of data.
 
