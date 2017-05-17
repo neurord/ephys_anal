@@ -6,9 +6,10 @@ ephys anal
 Analyzes individual experiments in which population spikes are recorded before (baseline) and after (follow-up) LTP induction.  The LTP induction is detected automatically as the last gap between pop-spikes greater than induction_gap (e.g. 32 sec, assuming pop-spikes measured once per 30 sec).  Assumes input data is a text file output from labview, in which there are 24 header lines, and the remaining data are in two columns: time and voltage.  Program takes the single voltage column and cuts it into N traces of K samples, where samples_per_trace is read from one of the header lines.
 
 Must provide information on experiments, such as filename that data is in, sex, age, any drugs, brain region, and frequency of induction protocol. Specify these from within python with the following syntax:
+
    ARGS="filename sex age drugs frequency region"
 
-To modify the information stored with experiments, modify parse_args in pop_spike_utilities.py
+To modify the information stored with experiments, modify parse_args in pop_spike_utilities.py (and then modify GrpAvgPopSpike.py which uses the same arg parser)
 
 *Adjustable parameters include:*
 
@@ -33,9 +34,10 @@ Used by PopSpikeAnal.py.  Contains function for plotting the data.  Each trace i
 Analyze post-synaptic potentials before and after LTP induction from whole cell patch clamp experiments. Assumes input data are a set of files in igor binary.
 
 Must provide information on experiments, such as filename that data is in, sex, age, any drugs, celltype, genotype, light level, light responsive (the latter two are for optogenetic protocols), depolarization (either via somatic current injection or optogenetically), whether APs were observed during the induction protocol, time between break-in and beginning of LTP induction, tip resistance, temperature of bath.  Specify these from within python with the following syntax:
+
    ARGS="20-Aug-2015_SLH001 M 29 heat nodrug 5.4 12 A2a+ MSN non 0 soma APs"
 
-To modify the information stored with experiments, modify parse_args in pop_spike_utilities.py
+To modify the information stored with experiments, modify parse_args 
 
 *Additional parameters (common to all experiments):*
 
@@ -62,11 +64,11 @@ B. a file of mean, stdev, and N for each group to be used to generate publicatio
 *Adjustable parameters include:*
 
 1. subdir: full path to location of pickle files (i.e., output files from PopSpikeAnal.py)
-slope_std_factor: Currently not used.  Could be used to excludes data files in which baseline slope exceeds +/- this factor times the std of the fit to the baseline.  Instead, we are using ...
-2. slope_threshold: exclude data files in which baseline slope exceeds +/- this value.
-3. minimum_sweeps: Excludes data files which have insufficient traces following the induction.  This number is total number of minutes, which user calculates from baseline_minutes + follow-up minutes
-4. sample_times: set of follow-up times (in minutes) for providing mean plasticity change
-5. sepvarlist: A list of variables and values to used to separate all the data into groups. E.g.[ ['sex',['F','Fe','M']], ['drug', ['none']] ] is a list with two separation variables: sex, which can have one of 3 values, and drug, which could have multiple values, but by indicating a single value, the code will give two drug groups: none, and everything else. The order of specifying variables only matters to how the plots are grouped.  
+2. slope_std_factor: Currently not used.  Could be used to excludes data files in which baseline slope exceeds +/- this factor times the std of the fit to the baseline.  Instead, we are using ...
+3. slope_threshold: exclude data files in which baseline slope exceeds +/- this value.
+4. minimum_sweeps: Excludes data files which have insufficient traces following the induction.  This number is total number of minutes, which user calculates from baseline_minutes + follow-up minutes
+5. sample_times: set of follow-up times (in minutes) for providing mean plasticity change
+6. sepvarlist: A list of variables and values to used to separate all the data into groups. E.g.[ ['sex',['F','Fe','M']], ['drug', ['none']] ] is a list with two separation variables: sex, which can have one of 3 values, and drug, which could have multiple values, but by indicating a single value, the code will give two drug groups: none, and everything else. The order of specifying variables only matters to how the plots are grouped.  
 
 **5. GrpAvgPatchMultiGroups.py**
 ---------------------------------
