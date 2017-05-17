@@ -20,12 +20,13 @@ import pickle
 from scipy import optimize
 import pop_spike_utilities as psu
 
+user="VL"
 #TWEAK THESE as NEEDED: If mislabeling Features
 #1. such as labeling FV as Pop spike, make FVwidth larger
 #2. labeling the end of the artifact as the popspike (make artdecaytime larger)
-#possibly make them parameters.  Units are msec, mV
-artdecaytime=1.2 #units: ms
-FVwidth=0.1 #units: ms
+# Units are msec, mV
+artdecaytime=2.0 #units: ms
+FVwidth=0.5 #units: ms
 noisethresh=1.5 #units: mV, if pospeak is this much greater than baseline, there is a problem
 artifactthreshold=1.5 #units: mV make smaller if artifact is too small
 big_popspike_factor=3  #possible problem if popspike is bigger than mean + factor*stdev
@@ -33,7 +34,7 @@ slope_std_factor=2 #<<<<<<<<<<<<<<<<<<< if slope +/- slope_std_factor*std exclud
 
 #####parameters that you may want to tweak ###############
 #If induction is not during the last pause in recording, you need to fix some of the code below
-first_peak_end_fraction=0.625      #do not look past this fraction of trace for the 1st popspike (maybe there is a second one that we will look for later).
+first_peak_end_fraction=0.725      #do not look past this fraction of trace for the 1st popspike (maybe there is a second one that we will look for later).
 artifact_window=0.5     #if artifact is not found in first artifact_window of trace, there is problem
 baseline_minutes=15
 tracesPerMinute=2      #how often you stimulate and sample per minute
@@ -44,10 +45,15 @@ tracesPerMinute=2      #how often you stimulate and sample per minute
 sample_window=5
 sample_times=[30,60,90,120]
 
-#Directory where data is located
-datadir="C:\Users\Sarah\Documents\Python Scripts\DATA\\"
-#where to put pickel files.  Make sure this directory exists or the program won't work.
-outputdir="DATA\\"
+if user=="AK":
+    datadir="F:\AlexData//"
+    #where to put pickel files.  Make sure this directory exists or the program won't work.
+    outputdir="F:\AlexData/pickle/"
+if user=="VL":
+    #Directory where data is located
+    datadir="E:\FIELDS/ValerieData//"
+    #where to put pickel files, relative to current path.  Make sure this directory exists or the program won't work.
+    outputdir="C:\Users/Sarah/My Documents/Python Scripts/Pickle//"
 
 #plasticity induction produces a time gap in the time wave, more than 10% greater than time between traces
 induction_gap=(60./tracesPerMinute)*1.1       #10% longer than the seconds between popspikes
@@ -59,7 +65,7 @@ plotYN=1
 
 ###################### below here, the only parameter is experiment naming convention #######################
 anal_params={'artdecay':artdecaytime, 'FVwidth':FVwidth, 'noisethresh':noisethresh, 'big_popspike_factor': big_popspike_factor,
-             'artifactthresh': artifactthreshold,'artifact_wind':artifact_window,'1st_peak_end': first_peak_end,
+             'artifactthresh': artifactthreshold,'artifact_wind':artifact_window,'1st_peak_end': first_peak_end_fraction,
              'induction_gap': induction_gap, 'baseline_min': baseline_minutes, "baselinepts": baselinepoints}
 
 
@@ -136,7 +142,7 @@ if induction<pretraces:
         pretraces=induction
 starttrace=induction-pretraces+1
 num_usable_traces=min(numtraces-starttrace,(two_hours+baseline_minutes)*tracesPerMinute)
-num_usable_minutes=int(np.round(float(num_usable_traces)/tracesPerMinute))
+num_usable_minutes=int(np.ceil(float(num_usable_traces)/tracesPerMinute))
 goodtraces=range(starttrace,starttrace+num_usable_traces)
 print "traces",numtraces,"usable", num_usable_traces,"start", starttrace,"two hours", (two_hours+baseline_minutes)*tracesPerMinute,"last usable", goodtraces[-1]
 
@@ -265,11 +271,11 @@ popspikenorm=np.zeros((num_usable_minutes))
 FVnorm=np.zeros((num_usable_minutes))
 popspikeminutes=np.zeros((num_usable_minutes))
 meanFVpre=FVsize[0:pretraces].mean()
-for sample,tracenum in enumerate(range(0, num_usable_traces//tracesPerMinute*tracesPerMinute, tracesPerMinute)):
-	popspikenorm[sample]=np.nanmean(amp[tracenum:tracenum+tracesPerMinute])/meanpre	
-	popspikeminutes[sample]=(tracetime[starttrace+tracenum]-tracetime[induction])/60        #60 sec per minute
+for sample in range(num_usable_minutes):
+	popspikenorm[sample]=np.nanmean(amp[sample*tracesPerMinute:(sample+1)*tracesPerMinute])/meanpre	
+	popspikeminutes[sample]=(tracetime[starttrace+sample*tracesPerMinute]-tracetime[induction])/60        #60 sec per minute
 	if FVwidth > 0:
-		FVnorm[sample]=FVsize[tracenum:tracenum+tracesPerMinute].mean()/meanFVpre
+		FVnorm[sample]=FVsize[sample*tracesPerMinute:(sample+1)*tracesPerMinute].mean()/meanFVpre
 	else:
 		FVnorm[sample]=0
 
