@@ -52,6 +52,8 @@ a. FileDir=inputDir+args.experiment+"_Waves/" specifies location of data files f
 b. outputDir: name of directory to write output files
 c. filenameending: text string appended to name of experiment which specifies wildcard pattern filenames: pattern=FileDir+"W"+args.experiment+filenameending
 
+This program was used in Hawes et al. J Physiology 2017 for analysis of data.
+
 **4. GrpAvgPopSpike.py**
 ------------------------
 Analyzes groups of experiments - the output of PopSpikeAnal.py.
@@ -93,11 +95,16 @@ Used by GrpAvgPopSpike.py and by GrpAvgPatchMultiGroups.py
 
 **7. TBSanal.py**
 -------------------------
+Extracts action potential timing relative to electrical stimulation during theta burst stimulation for LTP induction.
+
+This program was used in Hawes et al. J Physiology 2017 for analysis of data: number of action potentials per theta burst, and interval between stimulated PSPs and action potentials. 
 
 **8. AnalyzeIV.py**
 -------------------------
 Analyzes IF and IV curves from whole cell patch clamp experiments.
 Assumes IF is separate set of curves from IV.  Must specify (or use default values) or starting current injection and increment.  Must specify (or use default values) for time of current injection onset and duration of current injection.
+
+This program was used in Hawes et al. J Physiology 2017 for analysis of data: characterization of AP characteristics and current vs AP frequency.
 
 **9. HVAanal.py**
 -------------------------
@@ -119,6 +126,7 @@ This program was used in Evans et al. J Neurophysiology 2015 for analysis of dat
 -------------------------
 
 **These python programs contain utilities used by TBSanal.py and AnalyzeIV.py for spike dection and characterization:**
+
 1. compat.py
 2. detect.py
 3. loader.py
