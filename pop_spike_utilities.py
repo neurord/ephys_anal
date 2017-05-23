@@ -50,7 +50,7 @@ def line(x,A,B):
 
 def plot_peaks(exper,time,Vm_traces,peaktime,pospeaktime,peak,pospeak,popspikestart,base,goodtraces,baseline_start,FVwidth):
     traces_per_panel=40     #controls how many traces shown on each panel
-    peak_decay=0.014        #controls how much of the trace is plotted after the peak
+    peak_decay=0.016        #controls how much of the trace is plotted after the peak
     spread=0.1              #controls how far apart to spread the traces 
     dt=time[1]-time[0]
     panels=int(len(peaktime)/traces_per_panel)
@@ -70,10 +70,11 @@ def plot_peaks(exper,time,Vm_traces,peaktime,pospeaktime,peak,pospeak,popspikest
                 end=int((peaktime[index]+peak_decay)/dt)
                 #end=len(Vm_traces[goodtraces[index]]) #####uncomment to display entire trace
                 offset=0.001-baseline_start[index]*dt  #display 1msec prior to baseline_start
-                axes[panel].plot(time[st:end]+offset,Vm_traces[goodtraces[index],st:end]+index*spread,label=index)
+                axes[panel].plot(time[st:end]+offset,Vm_traces[goodtraces[index],st:end]+index*spread,label=goodtraces[index])
                 axes[panel].plot(peaktime[index]+offset,peak[index]+index*spread,'k*')
-                if pospeak[index]==np.nan:
-                    axes[panel].plot(pospeaktime[index]+offset,pospeak[index]+index*spread,'mD')
+                if np.isnan(pospeak[index]):
+                    #print "nan detected", index, pospeaktime[index]+offset,int(pospeaktime[index]/dt)
+                    axes[panel].plot(pospeaktime[index]+offset,Vm_traces[goodtraces[index],int(pospeaktime[index]/dt)]+index*spread,'mD')
                 elif base[index]>pospeak[index]:
                     axes[panel].plot(pospeaktime[index]+offset,pospeak[index]+index*spread,'r*')
                 else:
@@ -82,8 +83,8 @@ def plot_peaks(exper,time,Vm_traces,peaktime,pospeaktime,peak,pospeak,popspikest
                 axes[panel].plot(popspikestart[index]+FVwidth+offset,Vm_traces[goodtraces[index],dt*popspikestart[index]]+index*spread,'b|')
                 axes[panel].plot(popspikestart[index]+offset,Vm_traces[goodtraces[index],dt*popspikestart[index]]+index*spread,'k|')
         axes[panel].set_xlabel('Time (sec)')
+        axes[panel].legend(fontsize=7, loc='right')
     fig.suptitle('black star=popspike,red o,* = pospeak, blue o = baseline, |=ps start/FV start')
-    axes[panels-1].legend(fontsize=8, loc='best')
     axes[0].set_ylabel('Vm (mV)')
     fig.canvas.draw()
         #text=raw_input('next? (y/n)')
@@ -99,3 +100,25 @@ def plot_summary(popspikeminutes,popspikenorm,baselineminutes,popspike_timesampl
         print "summary at", len(start), "time points \n",np.column_stack((time_summary,popspike_timesamples[0:len(start)]))
         axes.plot(time_summary,popspike_timesamples[0:len(start)],'ko')
         return 
+        
+def read_labview(filename):
+    with open(filename,'r') as f:
+        for line in f:
+            if "Samples" in line:
+                break
+    timepoints_per_trace=int(line.split()[1])
+    data = np.loadtxt(filename, skiprows=24) 
+    #first column of datafile is time, second column is Vm
+    wholetime=data[:,0]
+    tempVm=data[:,1]
+    dt=wholetime[1]-wholetime[0]
+    xtime=wholetime[0:timepoints_per_trace]
+    #reshape the data to put each trace in separate column
+    datalength=np.shape(tempVm)[0]
+    numtraces=datalength/timepoints_per_trace
+    Vm_traces=np.reshape(tempVm, (numtraces, -1))
+    #extract the start time for each trace
+    tracetime=np.zeros(numtraces)
+    for i,j in enumerate(range(0, datalength, timepoints_per_trace)):
+        tracetime[i]=wholetime[j]
+    return Vm_traces,tracetime,dt,xtime
