@@ -5,10 +5,10 @@
 import os
 
 #if running from windows, might need to execute the following command:
-#os.getcwd()
+os.getcwd()
 #might need to use forward slashes in this command:
-#pythondir="C:\Users\avrama\Documents\StochDiffcode\Python"
-#os.chdir(pythondir)
+pythondir="C:\Users\Sarah\Documents\Python Scripts"
+os.chdir(pythondir)
 
 import numpy as np
 from matplotlib import pyplot
@@ -20,30 +20,35 @@ import pickle
 from scipy import optimize
 import pop_spike_utilities as psu
 
-user="VL"
+user="VL"  #see line 53-61 for location of directories for each user
 #TWEAK THESE as NEEDED: If mislabeling Features
-#1. such as labeling FV as Pop spike, make FVwidth larger
+#1. such as labeling FV as Pop spike, make FVwidth or artdecaytime larger
 #2. labeling the end of the artifact as the popspike (make artdecaytime larger)
 # Units are msec, mV
-artdecaytime=2.0 #units: ms
-FVwidth=0.5 #units: ms
-noisethresh=1.5 #units: mV, if pospeak is this much greater than baseline, there is a problem
+artdecaytime=0.5 #units: ms  3d: look for FV between artdecaytime and artdecaytime+FVwidth
+FVwidth=0.9 #units: ms  1st: look for pop spike AFTER FVwidth + artdecaytime
+# 2nd: look for positive peak between artdecaytime and time of negative peak (pop spike)
 artifactthreshold=1.5 #units: mV make smaller if artifact is too small
-big_popspike_factor=3  #possible problem if popspike is bigger than mean + factor*stdev
-slope_std_factor=2 #<<<<<<<<<<<<<<<<<<< if slope +/- slope_std_factor*std excludes 0,  print warning
 
 #####parameters that you may want to tweak ###############
 #If induction is not during the last pause in recording, you need to fix some of the code below
-first_peak_end_fraction=0.725      #do not look past this fraction of trace for the 1st popspike (maybe there is a second one that we will look for later).
+first_peak_end_fraction=0.625      #do not look past this fraction of trace for the 1st popspike (maybe there is a second one that we will look for later).
 artifact_window=0.5     #if artifact is not found in first artifact_window of trace, there is problem
 baseline_minutes=15
-tracesPerMinute=2      #how often you stimulate and sample per minute
+noisethresh=1.5 #units: mV, if pospeak is this much greater than baseline, there may be a problem
+slope_std_factor=2 #<<<<<<<<<<<<<<<<<<< if slope +/- slope_std_factor*std excludes 0,  print warning
+
+#plasticity induction produces a time gap in the time wave, more than 10% greater than time between traces
+induction_gap_time=1.1
+baselinepoints=10	#This is just for finding the artifact
 
 # for some summary measures, average over a x min window (where x = sample window)
 #surronding the specified sample_time postinduction
 #Analyze these measures using ANOVA
 sample_window=5
 sample_times=[30,60,90,120]
+#Search for files according to pattern datadir+params.exper+filename_ending
+filename_ending=".lvm"
 
 if user=="AK":
     datadir="F:\AlexData//"
@@ -55,19 +60,15 @@ if user=="VL":
     #where to put pickel files, relative to current path.  Make sure this directory exists or the program won't work.
     outputdir="C:\Users/Sarah/My Documents/Python Scripts/Pickle//"
 
-#plasticity induction produces a time gap in the time wave, more than 10% greater than time between traces
-induction_gap=(60./tracesPerMinute)*1.1       #10% longer than the seconds between popspikes
-pretraces=tracesPerMinute*baseline_minutes
+plotYN=1
 two_hours=120
 sec_per_msec=0.001
-baselinepoints=10	#This is just for finding the artifact
-plotYN=1
+sec_per_min=60.0
 
 ###################### below here, the only parameter is experiment naming convention #######################
-anal_params={'artdecay':artdecaytime, 'FVwidth':FVwidth, 'noisethresh':noisethresh, 'big_popspike_factor': big_popspike_factor,
+anal_params={'artdecay':artdecaytime, 'FVwidth':FVwidth, 'noisethresh':noisethresh, 
              'artifactthresh': artifactthreshold,'artifact_wind':artifact_window,'1st_peak_end': first_peak_end_fraction,
-             'induction_gap': induction_gap, 'baseline_min': baseline_minutes, "baselinepts": baselinepoints}
-
+             'induction_gap': induction_gap_time, 'baseline_min': baseline_minutes, "baselinepts": baselinepoints}
 
 try:
 	commandline = ARGS.split() #in python: define space-separated ARGS string
@@ -79,49 +80,36 @@ except NameError: #if you are not in python, read in filename and other paramete
 params=psu.parse_args(commandline,do_exit,0)
 	
 #Looks for file specified experiment name
-filenamepattern=datadir+params.exper+".lvm"
+filenamepattern=datadir+params.exper+filename_ending
 print "Looking for files using: ", filenamepattern
 filename = glob.glob(filenamepattern)
 if (len(filename)==0):
 	print "You mistyped the filenames. Python found no such files:"
 	pp(filename)
 
-#read in data file
-with open(filename[0],'r') as f:
-    for line in f:
-        if "Samples" in line:
-            break
-timepoints_per_trace=int(line.split()[1])
+#read in data file.  This is specific to labview output
+Vm_traces,tracetime,dt,time=psu.read_labview(filename[0])
+
+numtraces=np.shape(Vm_traces)[0]
+timepoints_per_trace=np.shape(Vm_traces)[1]
+
+tracesPerMinute=int(sec_per_min/(tracetime[-1]-tracetime[-2]))
+print "timepoints_per_trace",timepoints_per_trace, "Traces Per Minute", tracesPerMinute
+text=raw_input('OK to continue? (y/n)')
+if text=='n':
+    print "exiting"
+    raise Exception('wrong stimulation rate')
+induction_gap=(sec_per_min/tracesPerMinute)*1.1       #10% longer than the seconds between popspikes
+pretraces=tracesPerMinute*baseline_minutes
+ 
+#convert parameters units of ms to points
 first_peak_end=int(first_peak_end_fraction*timepoints_per_trace)
-print "timepoints_per_trace",timepoints_per_trace
 latest_artifact=artifact_window*timepoints_per_trace 
-data = np.loadtxt(filename[0], skiprows=24) 
-
-#first column of datafile is time, second column is Vm
-wholetime=data[:,0]
-tempVm=data[:,1]
-
-dt=wholetime[1]-wholetime[0]
 artifactdecay=int((artdecaytime*sec_per_msec)/dt)
 if FVwidth>0:
         FVwidth_pts=int((FVwidth*sec_per_msec)/dt)
 else:
         FVwidth_pts=0
-
-#reshape the data to put each trace in separate column
-datalength=np.shape(tempVm)[0]
-numtraces=datalength/timepoints_per_trace
-Vm_traces=np.reshape(tempVm, (numtraces, -1))
-
-
-
-#create time wave that increments by dt, for only 400 samples
-time=wholetime[0:timepoints_per_trace]
-
-#extract the start time for each trace
-tracetime=np.zeros(numtraces)
-for i,j in enumerate(range(0, datalength, timepoints_per_trace)):
-        tracetime[i]=wholetime[j]
 
 #find the induction time - which is the trace after the first large gap in recordings
 #what if there is more than one gap?  The last gap is induction gap
@@ -177,9 +165,10 @@ for tracenum in goodtraces:
 	prob=0
 	artifactbegin=np.min(np.where(over_thresh))
 	baseline_start[index]=artifactbegin-int(sec_per_msec/dt)
-    	ps_start=int(artifactbegin+artifactdecay)
-    	popspikestart[index]=ps_start*dt
-    	#print(artifactbegin, latest_artifact, baseline_start[index], ps_start, popspikestart[index])
+    	artifact_end=int(artifactbegin+artifactdecay)
+    	ps_start=artifact_end+FVwidth_pts
+    	popspikestart[index]=artifact_end*dt
+    	#print(artifactbegin, latest_artifact, baseline_start[index], artifact_end, popspikestart[index])
     if artifactbegin==0 or artifactbegin>latest_artifact or prob:
         print "WARNING!!!!! NO ARTIFACT FOUND for trace",tracenum,'artifact', artifactbegin*dt, Vm_traces[tracenum,artifactbegin]-tempbaseline
         problem+=1
@@ -192,47 +181,54 @@ for tracenum in goodtraces:
         FVsize[index]=np.nan
         if problem<10:
             axes.plot(time,Vm_traces[tracenum,:]+index*0.1,label=tracenum)
-            axes.plot(popspikestart[index],Vm_traces[tracenum,ps_start]+index*0.1,'r*')
+            axes.plot(popspikestart[index],Vm_traces[tracenum,artifact_end]+index*0.1,'r*')
             fig.canvas.draw()
     else:
         #Artifact found, start analyzing data 1 ms prior to artifact
         #Calculate base as mean of 1 ms prior to artifact
         base[index]=np.mean(Vm_traces[tracenum,baseline_start[index]:artifactbegin])
         #find negative peak and peak location, beginning at artifactdecay+FVwidth
-        peakpoint=Vm_traces[tracenum,ps_start+FVwidth_pts:first_peak_end].argmin()+ps_start+FVwidth_pts
-        peaktime[index]=peakpoint*dt
-        peak[index]=Vm_traces[tracenum,peakpoint]
+        neg_peakpoint=Vm_traces[tracenum,ps_start:first_peak_end].argmin()+ps_start
+        peaktime[index]=neg_peakpoint*dt
+        peak[index]=Vm_traces[tracenum,neg_peakpoint]
         #find the peak which divides fiber volley and popspike
         #if the negative peak is found as part of artifact decay, plot as problem trace
-        if (peakpoint-ps_start)<2:
-            print "WARNING!!!!! peakpoint found at end of artifact decay for trace",tracenum,'artifact:', artifactbegin*dt, 'peak:', peakpoint*dt 
+        if (neg_peakpoint-ps_start)<2:
+            print "WARNING!!!!! negative peak found at end of artifact decay + FVwidth for trace",tracenum,'artifact:', artifactbegin*dt, 'peak:', neg_peakpoint*dt 
             axes.plot(time,Vm_traces[tracenum,:]+index*0.1,label=tracenum)
-            axes.plot(popspikestart[index],Vm_traces[tracenum,ps_start]+index*0.1,'r*')
-            axes.plot(popspikestart[index],Vm_traces[tracenum,peakpoint]+index*0.1,'r*')
+            axes.plot(popspikestart[index],Vm_traces[tracenum,artifact_end]+index*0.1,'r*')
+            axes.plot(popspikestart[index],Vm_traces[tracenum,neg_peakpoint]+index*0.1,'r*')
             fig.canvas.draw()
-            pospeaktime[index]=np.nan
+            #pospeaktime[index]=np.nan
             pospeak[index]=np.nan
             amp[index]=np.nan
             FVsize[index]=np.nan
             problem+=1
         else:
-            pospeakpoint=Vm_traces[tracenum,ps_start:peakpoint].argmax()+ps_start
+            pospeakpoint=Vm_traces[tracenum,artifact_end:neg_peakpoint].argmax()+artifact_end
             #print tracenum,pospeakpoint
             pospeaktime[index]=pospeakpoint*dt
             pospeak[index]=Vm_traces[tracenum,pospeakpoint]
             #find fiber volley size - predefined width
-            FVsize[index]=np.abs(Vm_traces[tracenum,ps_start:ps_start+FVwidth_pts].min()-base[index])
+            if FVwidth_pts>0:
+                FVsize[index]=np.abs(Vm_traces[tracenum,artifact_end:ps_start].min()-base[index])
+            else:
+                FVsize[index]=np.nan
 	    #If pospeak is large noise artifact, this is problem trace
-            if pospeak[index]-base[index]>noisethresh:
+            if (pospeak[index]-base[index])>noisethresh or (pospeakpoint-artifact_end)<2:
+                axes.plot(time,Vm_traces[tracenum,:]+index*0.1,label=tracenum)
+                axes.plot(pospeaktime[index],Vm_traces[tracenum,pospeakpoint]+index*0.1,'mo')
+                axes.plot(peaktime[index],Vm_traces[tracenum,neg_peakpoint]+index*0.1,'g*')
+                #pospeaktime[index]=np.nan
+                pospeak[index]=np.nan
+                amp[index]=np.nan
+                FVsize[index]=np.nan
+                problem+=1
+                if (pospeak[index]-base[index])>noisethresh:
                     print "WARNING!!!! positive peak is really big.  Is this OK?"
-                    axes.plot(time,Vm_traces[tracenum,:]+index*0.1,label=tracenum)
-                    axes.plot(pospeaktime[index],Vm_traces[tracenum,pospeakpoint]+index*0.1,'mo')
-                    axes.plot(peaktime[index],Vm_traces[tracenum,peakpoint]+index*0.1,'g*')
-                    pospeaktime[index]=np.nan
-                    pospeak[index]=np.nan
-                    amp[index]=np.nan
-                    FVsize[index]=np.nan
-                    problem+=1
+
+                elif (pospeakpoint-artifact_end)<2:
+                    print "WARNING!!!!! positive peakpoint found at end of artifact decay for trace",tracenum,'artifact:', artifactbegin*dt, 'peak:', pospeakpoint*dt 
             else:
                     #calculate amplitude as difference between negative peak and either baseline or positive peak
                     if base[index] > pospeak[index]:
@@ -243,23 +239,6 @@ axes.legend(fontsize=8, loc='best')
 
 meanpre=amp[~np.isnan(amp[0:pretraces])].mean()
 pretraces=baseline_minutes*tracesPerMinute
-for index in range(pretraces,len(goodtraces)):
-    #find nanmax (and location of nanmax)
-    #calculate mean and std without the max, compare max to criteria, but using stdev =4
-    #if too high, exclude, repeat until the answer is no.
-    criteria=np.nanmean(amp[pretraces:]/meanpre)+big_popspike_factor*np.nanstd(amp[pretraces:]/meanpre)
-    if np.abs(amp[index]/meanpre)>np.abs(criteria):
-	problem+=1
-	print "Possible PROBLEM with amplitude of peak for trace", goodtraces[index], "index", index, "normamp",amp[index]/meanpre,"crit",criteria
-	amp[index]=np.nan
-        st=baseline_start[index]
-        end=int((peaktime[index]+0.004)/dt)
-        axes.plot(time[st:end],Vm_traces[goodtraces[index],st:end],'-',label=tracenum)
-#if problem==0:
-#    pyplot.close(fig)
-#else:
-#    text=raw_input('ready for good traces plot? (y/n)')
-#    pyplot.close(fig)
 
 #plot traces with extracted peaks to verify
 if plotYN:
