@@ -9,16 +9,16 @@ import sys
 from pprint import pprint as pp
 import glob
 import pickle
-import pop_spike_utilities as psu
-import GrpPlotUtil as grp_utl
 import os
 print os.getcwd()
 from matplotlib import pyplot
 
 #Change home (location of pickle files)
 home="C:\Users\Sarah\Documents\Python Scripts\\"
-
 os.chdir(home)
+
+import pop_spike_utilities as psu
+import GrpPlotUtil as grp_utl
 #this is subdir for pickle files.  Uncomment the appropriate one:
 #subdir="Alex Data\\"
 subdir="Pickle\\"
@@ -31,7 +31,7 @@ slope_std_factor=2     #<<<<<<<<<<<<<<<<<<< if slope +/- slope_std_factor*std in
 slope_threshold=0.008  #0.008 gives good no-stim control
 ########## Specify separation variables for generating means to plot in Igor	
 ###For binary separation, list only one value; for > 2 values, must list each one
-sepvarlist=[['theta',[0, 5.0, 10.5]],['region',['DM']],['sex',['F','Fe','M']]]#,['age',[50]]]
+sepvarlist=[['theta',[0, 5.0, 10.5]],['region',['DM']],['drug',['none','nitr', 'dmso', 'sch23390']]]#['sex',['F','Fe','M']]]#,['age',[50]]]
 #sepvarlist=[['theta',[0, 5.0, 10.5]],['drug', ['none']]]#,['age',[50]]]
 pattern = subdir+'*.pickle'
 outfnames = sorted(glob.glob(pattern))
@@ -50,10 +50,11 @@ specify_params=psu.parse_args(commandline,do_exit,1)
 DATAS = [] # list will contain all trace data from experiments which are not ignored
 PARAMS = [] #list will contain all the parameters, so we can create SAS output
 ANAL=[]
-fig,axes=pyplot.subplots()
-fig.canvas.set_window_title('Problem Slopes')
-axes.set_ylabel('Vm (mV)')
-axes.set_xlabel('Time (sec), red star marks end of artifact decay')
+fig,axes=pyplot.subplots(2,1)
+fig.canvas.set_window_title('Problems')
+axes[0].set_ylabel('Vm (mV)')
+axes[1].set_xlabel('Time (sec)')
+
 for outfname in outfnames:
     with open(outfname) as f:
 		datadict = pickle.load(f)
@@ -73,7 +74,7 @@ for outfname in outfnames:
             print "!!!NOT ENOUGH goodtraces", datadict['parameters'].exper, len(datadict['trace']['popspikenorm'])
         if np.abs(datadict['trace']['slope'])>slope_threshold:
             print "!!!BAD baseline", datadict['parameters'].exper,  "slope u,s", round(datadict['trace']['slope'],6),round(datadict['trace']['slope_std'],6)
-            axes.plot(datadict['trace']['popspikeminutes'],datadict['trace']['popspikenorm'],'o', label=datadict['parameters'].exper)
+            axes[0].plot(datadict['trace']['popspikeminutes'],datadict['trace']['popspikenorm'],'.', label=datadict['parameters'].exper)
         #text=raw_input('continue? (y/n)')
     if ignore1 or ignore2:
         print "***** ignoring:", datadict['parameters']
@@ -81,13 +82,17 @@ for outfname in outfnames:
     else:
         if np.isnan(datadict['trace']['popspikenorm']).any():
             print "########## np.nan detected", exper_param.exper, datadict['anal_params']
+            axes[1].plot(datadict['trace']['popspikeminutes'],datadict['trace']['popspikenorm'],'+', label=datadict['parameters'].exper)
+            nan_index=np.argwhere(np.isnan(datadict['trace']['popspikenorm']))
+            axes[1].plot(datadict['trace']['popspikeminutes'][nan_index],np.ones((len(nan_index))),'o', label=datadict['parameters'].exper)
         if datadict['trace']['popspikenorm'][-1]==0.0:
             print "@@@@@@@@@ check popSpikeAnal for", exper_param.exper, datadict['anal_params']
         #print 'OK: {}'.format(exper_param)
         DATAS.append(datadict['trace'])
         PARAMS.append(datadict['parameters'])
         ANAL.append(datadict['anal_params'])
-axes.legend(fontsize=8, loc='best')
+axes[0].legend(fontsize=8, loc='best')
+axes[1].legend(fontsize=8, loc='best')
 fig.canvas.draw()				
 #Calculate average over all data that meets criteria
 if (len(DATAS)==0):
