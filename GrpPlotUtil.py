@@ -1,6 +1,8 @@
 import numpy as np
 from matplotlib import pyplot
 from matplotlib import gridspec
+from scipy import optimize
+import pop_spike_utilities as psu
 
 ######## This function calculates averages across experiments
 def exp_avg(datas, datatype,somethreshold=999e6):
@@ -86,25 +88,25 @@ def separate(in_data,sepvar,sepval,in_params):
         return separate_data,sep_params
 
 def plot_groups(avg_grp,stderr_grp,minutes_grp,count,filenm,sepvarlist,paramgrp,paramgrpnum):
-    maxdur=minutes_grp[0][-1]
-    nochangeline=np.ones((len(avg_grp[0])))
+    window_criterion=2 #make this 1 to get 4 windows with 2 separation variables
+    #maxdur=minutes_grp[0][-1]
     pyplot.ion()
     fig=pyplot.figure(figsize=(10,15))
     fig.canvas.set_window_title('Group Average of Normalized PopSpike')
-    if len(sepvarlist)>1:
+    if len(sepvarlist)>window_criterion:
         numwindows=4
     else:
-        numwindwos=2
+        numwindows=2
     gs=gridspec.GridSpec(numwindows,1)
     #Assign graph number based on first two separation variables
     graphnum=[]
     for num in range(len(avg_grp)):
-        if len(sepvarlist)==1:
+        if len(sepvarlist)<=window_criterion:
             if (getattr(paramgrp[paramgrpnum[num]][0],sepvarlist[0][0])==sepvarlist[0][1][0]):
                 graphnum.append(0)
             else:
                 graphnum.append(1)
-        if len(sepvarlist)>1:
+        if len(sepvarlist)>window_criterion:
             if (getattr(paramgrp[paramgrpnum[num]][0],sepvarlist[1][0])==sepvarlist[1][1][0]) and (getattr(paramgrp[paramgrpnum[num]][0],sepvarlist[0][0])==sepvarlist[0][1][0]):
                 graphnum.append(0)
             if (getattr(paramgrp[paramgrpnum[num]][0],sepvarlist[1][0])==sepvarlist[1][1][0]) and (getattr(paramgrp[paramgrpnum[num]][0],sepvarlist[0][0])!=sepvarlist[0][1][0]):
@@ -168,3 +170,40 @@ def opto_filename(sepvarlist,paramgrp,llval):
         filnm=filnm+str(attr)
 	#print filnm
     return filnm
+    
+def plot_onegroup(dict_group,param_group,group_name):
+    fig=pyplot.figure(figsize=(10,15))
+    #fig,axes=pyplot.subplots(1,1)
+    fig.canvas.set_window_title('popspike vs time for traces of '+group_name)
+    ps=[p['popspikenorm'] for p in dict_group]
+    pstime=[p['popspikeminutes'] for p in dict_group]
+    expername=[p.exper for p in param_group]
+    for expname,index in zip(expername,range(len(ps))):
+        pyplot.plot(pstime[index],ps[index],label=expname)
+    pyplot.legend()
+    fig.canvas.draw()
+    pyplot.show()
+
+def plot_corr(dict_group,param_group,paramgrpnum,numgroups,filenm,firstpt,lastpt,base_min):
+    fig,axes=pyplot.subplots(2,1)
+    fig.canvas.set_window_title('normpopspike vs ')
+    for gnum in range(numgroups):
+        ps=[np.nanmean(p['popspikenorm'][firstpt:lastpt]) for p in dict_group[paramgrpnum[gnum]]]
+        epsp=[np.nanmean(p['amp'][0:base_min]) for p in dict_group[paramgrpnum[gnum]]]
+        age=[p.age for p in param_group[paramgrpnum[gnum]]]
+        for ax,item in enumerate([epsp,age]):
+            if np.isnan(ps).any():
+                print "group", filenm[gnum],ps
+            else:
+                popt,pcov=optimize.curve_fit(psu.line,item,ps)
+                Aopt,Bopt=popt
+                Astd,Bstd=np.sqrt(np.diag(pcov))
+                labl=str(np.round(Bopt,3))+'+/-'+str(np.round(Bstd,3))
+            axes[ax].plot(item,ps,'o',label=filenm[gnum][6:]+labl)
+    axes[0].set_xlabel('baseline epsp (mV)')
+    axes[1].set_xlabel('age (days)')
+    for axis in axes:
+        axis.set_ylabel('normPopSpike')
+        axis.legend(fontsize=10, loc='best')
+    fig.canvas.draw()
+    pyplot.show()
