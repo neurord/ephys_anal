@@ -25,9 +25,9 @@ user="VL"  #see line 53-61 for location of directories for each user
 #1. such as labeling FV as Pop spike, make FVwidth or artdecaytime larger
 #2. labeling the end of the artifact as the popspike (make artdecaytime larger)
 # Units are msec, mV
-artdecaytime=0.5 #units: ms  3d: look for FV between artdecaytime and artdecaytime+FVwidth
-FVwidth=0.9 #units: ms  1st: look for pop spike AFTER FVwidth + artdecaytime
-# 2nd: look for positive peak between artdecaytime and time of negative peak (pop spike)
+artdecaytime=1.7 #units: ms  3d: look for FV between artdecaytime and artdecaytime+FVwidth
+FVwidth=0.1 #units: ms  1st: look for pop spike AFTER FVwidth + artdecaytime
+#                       2nd: look for positive peak between artdecaytime and time of negative peak (pop spike)
 artifactthreshold=1.5 #units: mV make smaller if artifact is too small
 
 #####parameters that you may want to tweak ###############
@@ -51,12 +51,12 @@ sample_times=[30,60,90,120]
 filename_ending=".lvm"
 
 if user=="AK":
-    datadir="F:\AlexData//"
+    datadir="F:\FIELDS/ValerieData//"
     #where to put pickel files.  Make sure this directory exists or the program won't work.
-    outputdir="F:\AlexData/pickle/"
+    outputdir="C:\Users/Sarah/My Documents/Python Scripts/AlexData//"
 if user=="VL":
     #Directory where data is located
-    datadir="E:\FIELDS/ValerieData//"
+    datadir="F:\FIELDS/ValerieData//"
     #where to put pickel files, relative to current path.  Make sure this directory exists or the program won't work.
     outputdir="C:\Users/Sarah/My Documents/Python Scripts/Pickle//"
 
@@ -93,7 +93,7 @@ Vm_traces,tracetime,dt,time=psu.read_labview(filename[0])
 numtraces=np.shape(Vm_traces)[0]
 timepoints_per_trace=np.shape(Vm_traces)[1]
 
-tracesPerMinute=int(sec_per_min/(tracetime[-1]-tracetime[-2]))
+tracesPerMinute=int(np.round(sec_per_min/(tracetime[-1]-tracetime[-2])))
 print "timepoints_per_trace",timepoints_per_trace, "Traces Per Minute", tracesPerMinute
 text=raw_input('OK to continue? (y/n)')
 if text=='n':
@@ -194,10 +194,11 @@ for tracenum in goodtraces:
         #find the peak which divides fiber volley and popspike
         #if the negative peak is found as part of artifact decay, plot as problem trace
         if (neg_peakpoint-ps_start)<2:
-            print "WARNING!!!!! negative peak found at end of artifact decay + FVwidth for trace",tracenum,'artifact:', artifactbegin*dt, 'peak:', neg_peakpoint*dt 
-            axes.plot(time,Vm_traces[tracenum,:]+index*0.1,label=tracenum)
-            axes.plot(popspikestart[index],Vm_traces[tracenum,artifact_end]+index*0.1,'r*')
-            axes.plot(popspikestart[index],Vm_traces[tracenum,neg_peakpoint]+index*0.1,'r*')
+            print "WARNING!!!!! negative peak found at end of artifact decay + FVwidth for trace",tracenum,'artifact:', artifactbegin*dt, 'peak:', neg_peakpoint*dt
+            offset=0.001-baseline_start[index]*dt  #display 1msec prior to baseline_start
+            axes.plot(time[baseline_start[index]:]+offset,Vm_traces[tracenum,baseline_start[index]:]+index*0.1,label=tracenum)
+            axes.plot(popspikestart[index]+offset,Vm_traces[tracenum,artifact_end]+index*0.1,'r*')
+            axes.plot(popspikestart[index]+offset,Vm_traces[tracenum,neg_peakpoint]+index*0.1,'r*')
             fig.canvas.draw()
             #pospeaktime[index]=np.nan
             pospeak[index]=np.nan
@@ -213,12 +214,13 @@ for tracenum in goodtraces:
             if FVwidth_pts>0:
                 FVsize[index]=np.abs(Vm_traces[tracenum,artifact_end:ps_start].min()-base[index])
             else:
-                FVsize[index]=np.nan
+                FVsize[index]=0
 	    #If pospeak is large noise artifact, this is problem trace
             if (pospeak[index]-base[index])>noisethresh or (pospeakpoint-artifact_end)<2:
-                axes.plot(time,Vm_traces[tracenum,:]+index*0.1,label=tracenum)
-                axes.plot(pospeaktime[index],Vm_traces[tracenum,pospeakpoint]+index*0.1,'mo')
-                axes.plot(peaktime[index],Vm_traces[tracenum,neg_peakpoint]+index*0.1,'g*')
+                offset=0.001-baseline_start[index]*dt  #display 1msec prior to baseline_start
+                axes.plot(time[baseline_start[index]:]+offset,Vm_traces[tracenum,baseline_start[index]:]+index*0.1,label=tracenum)
+                axes.plot(pospeaktime[index]+offset,Vm_traces[tracenum,pospeakpoint]+index*0.1,'mo')
+                axes.plot(peaktime[index]+offset,Vm_traces[tracenum,neg_peakpoint]+index*0.1,'g*')
                 #pospeaktime[index]=np.nan
                 pospeak[index]=np.nan
                 amp[index]=np.nan
@@ -228,7 +230,7 @@ for tracenum in goodtraces:
                     print "WARNING!!!! positive peak is really big.  Is this OK?"
 
                 elif (pospeakpoint-artifact_end)<2:
-                    print "WARNING!!!!! positive peakpoint found at end of artifact decay for trace",tracenum,'artifact:', artifactbegin*dt, 'peak:', pospeakpoint*dt 
+                    print "WARNING!!!!! positive peakpoint found at end of artifact decay for trace",tracenum,'artifact:', artifactbegin*dt, 'peak:', pospeakpoint*dt  , "baset", baseline_start[index]
             else:
                     #calculate amplitude as difference between negative peak and either baseline or positive peak
                     if base[index] > pospeak[index]:
