@@ -81,10 +81,10 @@ params=psu.parse_args(commandline,do_exit,0)
 	
 #Looks for file specified experiment name
 filenamepattern=datadir+params.exper+filename_ending
-print "Looking for files using: ", filenamepattern
+print ("Looking for files using: ", filenamepattern)
 filename = glob.glob(filenamepattern)
 if (len(filename)==0):
-	print "You mistyped the filenames. Python found no such files:"
+	print ("You mistyped the filenames. Python found no such files:")
 	pp(filename)
 
 #read in data file.  This is specific to labview output
@@ -94,10 +94,10 @@ numtraces=np.shape(Vm_traces)[0]
 timepoints_per_trace=np.shape(Vm_traces)[1]
 
 tracesPerMinute=int(np.round(sec_per_min/(tracetime[-1]-tracetime[-2])))
-print "timepoints_per_trace",timepoints_per_trace, "Traces Per Minute", tracesPerMinute
+print ("timepoints_per_trace",timepoints_per_trace, "Traces Per Minute", tracesPerMinute)
 text=raw_input('OK to continue? (y/n)')
 if text=='n':
-    print "exiting"
+    print ("exiting")
     raise Exception('wrong stimulation rate')
 induction_gap=(sec_per_min/tracesPerMinute)*1.1       #10% longer than the seconds between popspikes
 pretraces=tracesPerMinute*baseline_minutes
@@ -115,9 +115,9 @@ else:
 #what if there is more than one gap?  The last gap is induction gap
 trace_diff=np.diff(tracetime)
 gaps=np.where(trace_diff>induction_gap)[0]
-print "gaps in recordings", gaps
+print ("gaps in recordings", gaps)
 if len(gaps)==0:
-        print "whoops, no gap, possibly no induction"
+        print ("whoops, no gap, possibly no induction")
 else:
         induction=gaps[-1]
 
@@ -132,7 +132,7 @@ starttrace=induction-pretraces+1
 num_usable_traces=min(numtraces-starttrace,(two_hours+baseline_minutes)*tracesPerMinute)
 num_usable_minutes=int(np.ceil(float(num_usable_traces)/tracesPerMinute))
 goodtraces=range(starttrace,starttrace+num_usable_traces)
-print "traces",numtraces,"usable", num_usable_traces,"start", starttrace,"two hours", (two_hours+baseline_minutes)*tracesPerMinute,"last usable", goodtraces[-1]
+print ("traces",numtraces,"usable", num_usable_traces,"start", starttrace,"two hours", (two_hours+baseline_minutes)*tracesPerMinute,"last usable", goodtraces[-1])
 
 #initialize some arrays to store trace characteristics
 base=np.zeros((num_usable_traces))
@@ -160,17 +160,17 @@ for tracenum in goodtraces:
     over_thresh=np.abs(Vm_traces[tracenum]-tempbaseline)>artifactthreshold
     #over_thresh=np.where(Vm_traces[tracenum]-tempbaseline>artifactthreshold)
     if(np.all(-over_thresh)):
-	prob=1
+        prob=1
     else:
-	prob=0
-	artifactbegin=np.min(np.where(over_thresh))
-	baseline_start[index]=artifactbegin-int(sec_per_msec/dt)
-    	artifact_end=int(artifactbegin+artifactdecay)
-    	ps_start=artifact_end+FVwidth_pts
-    	popspikestart[index]=artifact_end*dt
+        prob=0
+    artifactbegin=np.min(np.where(over_thresh))
+    baseline_start[index]=artifactbegin-int(sec_per_msec/dt)
+    artifact_end=int(artifactbegin+artifactdecay)
+    ps_start=artifact_end+FVwidth_pts
+    popspikestart[index]=artifact_end*dt
     	#print(artifactbegin, latest_artifact, baseline_start[index], artifact_end, popspikestart[index])
     if artifactbegin==0 or artifactbegin>latest_artifact or prob:
-        print "WARNING!!!!! NO ARTIFACT FOUND for trace",tracenum,'artifact', artifactbegin*dt, Vm_traces[tracenum,artifactbegin]-tempbaseline
+        print ("WARNING!!!!! NO ARTIFACT FOUND for trace",tracenum,'artifact', artifactbegin*dt, Vm_traces[tracenum,artifactbegin]-tempbaseline)
         problem+=1
         base[index]=np.nan
         peaktime[index]=np.nan
@@ -194,7 +194,7 @@ for tracenum in goodtraces:
         #find the peak which divides fiber volley and popspike
         #if the negative peak is found as part of artifact decay, plot as problem trace
         if (neg_peakpoint-ps_start)<2:
-            print "WARNING!!!!! negative peak found at end of artifact decay + FVwidth for trace",tracenum,'artifact:', artifactbegin*dt, 'peak:', neg_peakpoint*dt
+            print ("WARNING!!!!! negative peak found at end of artifact decay + FVwidth for trace",tracenum,'artifact:', artifactbegin*dt, 'peak:', neg_peakpoint*dt)
             offset=0.001-baseline_start[index]*dt  #display 1msec prior to baseline_start
             axes.plot(time[baseline_start[index]:]+offset,Vm_traces[tracenum,baseline_start[index]:]+index*0.1,label=tracenum)
             axes.plot(popspikestart[index]+offset,Vm_traces[tracenum,artifact_end]+index*0.1,'r*')
@@ -227,10 +227,10 @@ for tracenum in goodtraces:
                 FVsize[index]=np.nan
                 problem+=1
                 if (pospeak[index]-base[index])>noisethresh:
-                    print "WARNING!!!! positive peak is really big.  Is this OK?"
+                    print ("WARNING!!!! positive peak is really big.  Is this OK?")
 
                 elif (pospeakpoint-artifact_end)<2:
-                    print "WARNING!!!!! positive peakpoint found at end of artifact decay for trace",tracenum,'artifact:', artifactbegin*dt, 'peak:', pospeakpoint*dt  , "baset", baseline_start[index]
+                    print ("WARNING!!!!! positive peakpoint found at end of artifact decay for trace",tracenum,'artifact:', artifactbegin*dt, 'peak:', pospeakpoint*dt  , "baset", baseline_start[index])
             else:
                     #calculate amplitude as difference between negative peak and either baseline or positive peak
                     if base[index] > pospeak[index]:
@@ -270,7 +270,7 @@ deletetime=[]
 for index in range(0,len(sample_times)):
         norm_index=sample_times[index]+baseline_minutes
         if len(popspikenorm)<norm_index:
-                print "calculating time samples; recording of ", popspikeminutes[-1], "min shorter than ", sample_times[index]
+                print ("calculating time samples; recording of ", popspikeminutes[-1], "min shorter than ", sample_times[index])
                 popspike_timesamples[index+1]=np.nan
                 FV_timesamples[index+1]=np.nan
                 deletetime.append(index)
@@ -280,14 +280,14 @@ for index in range(0,len(sample_times)):
 #May need to delete this line if column_stack in GrpAvgPopSpike complains about different length arrays
 new_sample_times=np.delete(sample_times,deletetime)+(baseline_minutes-sample_window/2)
 
-print "ready for summary plot, and fit line to baseline"
+print ("ready for summary plot, and fit line to baseline")
 #Plot popspikenorm vs minutes, fit line to baseline, print slope
 validbasepts=~np.isnan(popspikenorm[0:baseline_minutes])
 popt,pcov=optimize.curve_fit(psu.line,popspikeminutes[validbasepts],popspikenorm[validbasepts])
 Aopt,Bopt=popt
 Astd,Bstd=np.sqrt(np.diag(pcov))
 if  np.abs(Bopt)-slope_std_factor*Bstd>0:
-        print "********************** WARNING ************** \n Baseline Slope of ", Bopt,"+/- 2*",Bstd, "sig diff than zero"
+        print( "********************** WARNING ************** \n Baseline Slope of ", Bopt,"+/- 2*",Bstd, "sig diff than zero")
 
 if plotYN:
         psu.plot_summary(popspikeminutes,popspikenorm,baseline_minutes,popspike_timesamples,new_sample_times,Aopt,Bopt,fig,axes)
