@@ -24,27 +24,41 @@ def fft_func(wave,ts):
     return fft_wave,phase,freqs
 
 plt.ion()
-def fft_plot(t,x,freqs,X,phase=None,title=None):
-    if np.array(phase).any():
-        fig,axes=plt.subplots(3,1)
-    else:
-        fig,axes=plt.subplots(2,1)
-    fig.suptitle(title)
-    fs=np.abs(np.min(freqs))
-    axes[0].plot(t,x)
-    axes[0].set_xlabel('time')
-    axes[0].set_xlim(0,t[-1])
-
-    axes[1].plot(freqs, np.abs(X),'.')
-    axes[1].set_xlabel('Frequency in Hertz [Hz]')
-    axes[1].set_ylabel('FFT Magnitude')
-    axes[1].set_xlim(-fs , fs )
+def fft_plot(t,vm_array,freqs,fft_array,phase=None,title=None,mean_fft=None):
+    fig,axes=plt.subplots(1,1)
+    fig.suptitle(title+' vm')
+    for vm in vm_array:
+        axes.plot(t,vm[0])
+    axes.set_xlabel('time')
+    axes.set_xlim(0,t[-1])
     
     if np.array(phase).any():
-        axes[2].plot(freqs,phase,'r.')
-        axes[2].set_xlabel('Frequency in Hertz [Hz]')
-        axes[2].set_ylabel('FFT Phase')
-        axes[2].set_xlim(-fs , fs )
+        fig,axes=plt.subplots(2,1)
+    else:
+        fig,axes=plt.subplots(1,1)
+    fig.suptitle(title+' fft')
+    
+    #no point plotting above 500 Hz
+    #maxfreq=freqs[-1]
+    maxfreq=np.min(np.where(freqs>500))
+    maxval=np.max([np.max(np.abs(f[1:])) for f in fft_array])
+    for fft in fft_array:
+        axes[0].plot(freqs[0:maxfreq], np.abs(fft)[0:maxfreq])
+    if mean_fft:
+        axes[0].plot(freqs[0:maxfreq],np.abs(mean_fft['mag'])[0:maxfreq],'.',color='k')
+    axes[0].set_xlabel('Frequency in Hertz [Hz]')
+    axes[0].set_ylabel('FFT Magnitude')
+    axes[0].set_xlim(0 , freqs[maxfreq] )
+    axes[0].set_ylim(0,np.round(maxval) )
+    
+    if np.array(phase).any():
+        for phs in phase:
+            axes[1].plot(freqs[0:maxfreq],phs[0:maxfreq],'.')
+        if mean_fft:
+            axes[1].plot(freqs[0:maxfreq],mean_fft['phase'][0:maxfreq],'.k')
+        axes[1].set_xlabel('Frequency in Hertz [Hz]')
+        axes[1].set_ylabel('FFT Phase')
+        axes[1].set_xlim(0 , freqs[maxfreq] )
     return
 
 def plot_spectrum(spectrum,phase_spect,S_db):
