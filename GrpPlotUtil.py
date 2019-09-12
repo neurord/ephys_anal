@@ -6,86 +6,90 @@ import pop_spike_utilities as psu
 
 ######## This function calculates averages across experiments
 def exp_avg(datas, datatype,somethreshold=999e6):
-        stdev=0
-        if datatype=='none':
-                alldatavalues=datas
-                #print "exp_avg: datatype=none, single array passed"
-        else:
-                alldatavalues = [celldata[datatype] for celldata in datas]
-        l = max(len(celldatavalues) for celldatavalues in alldatavalues)
+	stdev=0
+	if datatype=='none':
+		alldatavalues=datas
+		#print ("exp_avg: datatype=none, single array passed")
+	else:
+		alldatavalues = [celldata[datatype] for celldata in datas]
+		#print("exp_avg, len of data", len(alldatavalues))
+	l = max(len(celldatavalues) for celldatavalues in alldatavalues)
+	#print("exp_avg, max len",l)
 	total = np.zeros(l)
 	count = np.zeros(l)
 	mn = np.zeros(l)
 	sumsquares = np.zeros(l)
-  
+
 	for celldatavalues in alldatavalues:
 		for i,datavalue in enumerate(celldatavalues):
 			if datavalue < somethreshold and ~np.isnan(datavalue):
 				total[i]+=datavalue
 				count[i]+=1
 				sumsquares[i]+=datavalue**2
-			#else:
-				#print datatype,datavalue
-			mn=total/count
-			meansquares=sumsquares/count
-			stdev=meansquares-mn**2
-		#total[:len(celldatavalues)] += celldatavalues
-		#count[:len(celldatavalues)] +=1
-        return mn,stdev,count
+			else:
+				print ('bad data value?', datatype,datavalue)
+	mn=total/count
+	meansquares=sumsquares/count
+	stdev=meansquares-mn**2
+	#total[:len(celldatavalues)] += celldatavalues
+	#count[:len(celldatavalues)] +=1
+	return mn,stdev,count
 
 def separate(in_data,sepvar,sepval,in_params):
-        #make sep_data and sep_params have as many sub arrays as length of sepval?
-        separate_data=[[],[]]
-        sep_params=[[],[]]
-        for i in range(len(sepval)-2): 
-                sep_params.append([])
-                separate_data.append([])
-        #print "sep_params",sep_params, "sepval", sepval, sepval[0]
-        for i in range(len(in_data)): 
-                success=0
-                if sepvar=='genotype':
-                        attribute=getattr(in_params[i],sepvar)[0:-1]
-                else:
-                        if sepvar=='cre':
-                                attribute=getattr(in_params[i],'genotype')[-1]
-                        else:
-                                attribute=getattr(in_params[i],sepvar)
-                if len(sepval)==1:
-			if isinstance(sepval[0], str):
-                        	#two classes, either equal or not equal to specified param
-                        	if (str(attribute) == sepval[0]):
-                                	separate_data[0].append(in_data[i])
-                                	sep_params[0].append(in_params[i])
-                                	success=1
-                        	else:
-                                	separate_data[1].append(in_data[i])
-                                	sep_params[1].append(in_params[i])
-                                	success=1
+	#make sep_data and sep_params have as many sub arrays as length of sepval?
+	separate_data=[[],[]]
+	sep_params=[[],[]]
+	for i in range(len(sepval)-2): 
+		sep_params.append([])
+		separate_data.append([])
+		print ("sep_params",sep_params, "sepval", sepval, sepval[0])
+	for i in range(len(in_data)): 
+		success=0
+		if sepvar=='genotype':
+			attribute=getattr(in_params[i],sepvar)[0:-1]
+		else:
+			if sepvar=='cre':
+				attribute=getattr(in_params[i],'genotype')[-1]
 			else:
-                        	if (attribute > sepval[0]):
-					#print "sepval", sepval[0], '<' ,attribute
-                                	separate_data[0].append(in_data[i])
-                                	sep_params[0].append(in_params[i])
-                                	success=1
-                        	else:
- 					#print "sepval", sepval[0], '>=', attribute
-                               		separate_data[1].append(in_data[i])
-                                	sep_params[1].append(in_params[i])
-                                	success=1
+				attribute=getattr(in_params[i],sepvar)
+			if len(sepval)==1:
+				if isinstance(sepval[0], str):
+					#two classes, either equal or not equal to specified param
+					if (str(attribute) == sepval[0]):
+						separate_data[0].append(in_data[i])
+						sep_params[0].append(in_params[i])
+						success=1
+					else:
+						separate_data[1].append(in_data[i])
+						sep_params[1].append(in_params[i])
+						success=1
+				else:
+					if (attribute > sepval[0]):
+						print ("sepval", sepval[0], '<' ,attribute)
+						separate_data[0].append(in_data[i])
+						sep_params[0].append(in_params[i])
+						success=1
+					else:
+						print ("sepval", sepval[0], '>=', attribute)
+						separate_data[1].append(in_data[i])
+						sep_params[1].append(in_params[i])
+						success=1
 				
-                else: 
-                        #multiple classes - each value has to be specified
-                        for j in range(len(sepval)):
-                                if (attribute == sepval[j]):
-                                        sep_params[j].append(in_params[i])
-                                        separate_data[j].append(in_data[i])
-                                        success=1
-                        #print "separate on", sepvar, attribute
-                if success==0:
-                        print "!!!!!!!!!!data",i,"  not assigned to group:",in_params[i]
-                #else:
-                        #print "data",i," assigned", in_params[i]
-        return separate_data,sep_params
+			else: 
+				#multiple classes - each value has to be specified
+				for j in range(len(sepval)):
+					if (attribute == sepval[j]):
+						sep_params[j].append(in_params[i])
+						separate_data[j].append(in_data[i])
+						success=1
+						print ("separate on", sepvar, 'attr', attribute,'j',j, 'sepavl', sepval[j],'size of group', len(separate_data[j]))
+					#else:
+					#	print("WRONG value, attr=", attribute, "val", sepval[j])
+				if success==0:
+					print ("!!!!!!!!!!data",i,"  not assigned to group:",in_params[i])
+				else:
+					print ("data",i," assigned", in_params[i])
+	return separate_data,sep_params
 
 def plot_groups(avg_grp,stderr_grp,minutes_grp,count,filenm,sepvarlist,paramgrp,paramgrpnum):
     window_criterion=2 #make this 1 to get 4 windows with 2 separation variables
@@ -132,13 +136,13 @@ def plot_groups(avg_grp,stderr_grp,minutes_grp,count,filenm,sepvarlist,paramgrp,
 
 
 def construct_filename(sepvarlist,paramgrp):
-    filnm=''
-    for sepnum in range(len(sepvarlist)):
-	sepvar=sepvarlist[sepnum][0]
-        attr=getattr(paramgrp[0],sepvar)
-        filnm=filnm+sepvar+str(attr)
-	#filnm=filnm+str(attr)
-    return filnm
+	filnm=''
+	for sepnum in range(len(sepvarlist)):
+		sepvar=sepvarlist[sepnum][0]
+		attr=getattr(paramgrp[0],sepvar)
+		filnm=filnm+sepvar+str(attr)
+		#filnm=filnm+str(attr)
+	return filnm
 
 def opto_filename(sepvarlist,paramgrp,llval):
     filnm=''
@@ -193,7 +197,7 @@ def plot_corr(dict_group,param_group,paramgrpnum,numgroups,filenm,firstpt,lastpt
         age=[p.age for p in param_group[paramgrpnum[gnum]]]
         for ax,item in enumerate([epsp,age]):
             if np.isnan(ps).any():
-                print "group", filenm[gnum],ps
+                print ("group", filenm[gnum],ps)
             else:
                 popt,pcov=optimize.curve_fit(psu.line,item,ps)
                 Aopt,Bopt=popt
