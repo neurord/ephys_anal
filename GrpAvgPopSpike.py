@@ -14,8 +14,7 @@ print (os.getcwd())
 from matplotlib import pyplot
 
 #Change home (location of pickle files)
-home="C:\Users\Sarah\Documents\Python Scripts\\"
-os.chdir(home)
+home="C:\\Users\\Sarah\\Documents\\Python Scripts\\"
 
 import pop_spike_utilities as psu
 import GrpPlotUtil as grp_utl
@@ -40,7 +39,7 @@ nan_threshold=5     #do not use experiment if too many missing (nan) popspikes
 #if you list only one separation variable, you only get 2 windows in the graph
 sepvarlist=[['region',['DM']],['theta',[0, 5.0, 10.5]],['drug',['none','nitr', 'dmso', 'sch23390']]]#,['age',[50]]],#,['sex',['F','Fe','M']]]#
 #sepvarlist=[['theta',[0, 5.0, 10.5]],['drug', ['none']]]#,['age',[50]]]
-pattern = subdir+'*.pickle'
+pattern = home+subdir+'*.pickle'
 outfnames = sorted(glob.glob(pattern))
 print ("NUM FILES (before selection):", len(outfnames))
 
@@ -163,13 +162,13 @@ else:
         ################ Write all of valid data for SAS: parameters and 5 min means of popspikenorm (ps_mean) and FVnorm (fv_means)
         SASoutput=np.column_stack((exper,Sex,Age,Drug,region,theta,ps_means, fv_means))
         SASheader="exper Sex Age drug region theta normpopspike norm_fv\n"
-        f=open("PARAMSforSAS.txt", 'w')
+        f=open(home+"PARAMSforSAS.txt", 'w')
         f.write(SASheader)
         np.savetxt(f, SASoutput, fmt='%s', delimiter='   ')
         f.close()
         Experheader="exper Sex Age drug region theta artifacthresh FVwidth artdecay noisethresh\n"
         Exper_list=np.column_stack((exper,Sex,Age,Drug,region,theta,artifacthresh,FVwidth, artdecay, noisethresh))
-        f=open("Experimentlist.txt", 'w')
+        f=open(home+"Experimentlist.txt", 'w')
         f.write(Experheader)
         np.savetxt(f, Exper_list, fmt='%s', delimiter='   ')
         f.close()
@@ -249,7 +248,7 @@ else:
         print ("&&&&&&&&&&&&& Summary Data")
         for gnum in range(numgroups):
             #construct output filename that tells you which experiments, e.g. Valid PSP
-            f=open(filenm[gnum]+".txt",'w')                      
+            f=open(home+filenm[gnum]+".txt",'w')                      
             outputdata=np.column_stack((minutes_grp[gnum], newcount_grp[gnum],
                                         100*avgpopspikenorm_grp[gnum], 100*stderrpopspikenorm_grp[gnum]))
             header="time "+filenm[gnum]+"count "+filenm[gnum]+"normpsAVG "+filenm[gnum]+"normpsSE "
