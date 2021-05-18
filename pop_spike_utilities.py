@@ -50,23 +50,76 @@ def parse_args(commandline,do_exit,flag):
             else:
                 raise ValueError('invalid ARGS')
         
-        #print experiment characteristics to double check unconstrained entries
-        print ("exper={}".format(args.exper))
-        print ("sex={}".format(args.sex))
-        print ("age={}".format(args.age))
-        print ("drug={}".format(args.drug))
-        print ("theta={}".format(args.theta))
-        print ("region={}".format(args.region))
-        return args
+    #print experiment characteristics to double check unconstrained entries
+    print ("exper={}".format(args.exper))
+    print ("sex={}".format(args.sex))
+    print ("age={}".format(args.age))
+    print ("drug={}".format(args.drug))
+    print ("theta={}".format(args.theta))
+    print ("region={}".format(args.region))
+    return args
 
 def line(x,A,B):
     return B*x+A
+
+def plot_peaks(exper,time,Vm_traces,peaktime,pospeaktime,peak,pospeak,popspikestart,base,goodtraces,baseline_start,FVwidth):
+    traces_per_panel=40     #controls how many traces shown on each panel
+    peak_decay=0.016        #controls how much of the trace is plotted after the peak
+    spread=0.1              #controls how far apart to spread the traces 
+    dt=time[1]-time[0]
+    panels=int(len(peaktime)/traces_per_panel)
+    if len(peaktime)%traces_per_panel:
+            panels=panels+1
+    fig,axes=pyplot.subplots(1,panels)
+    fig.canvas.set_window_title('Good traces for '+exper)
+    for panel in range(0,panels):
+        axes[panel].clear()
+        trace1=panel*traces_per_panel
+        tracen=min(len(peaktime),panel*traces_per_panel+traces_per_panel)
+        #fig.canvas.set_window_title('Traces '+str(trace1)+' to '+str(tracen)+' of '+exper)
+        for index in range(trace1,tracen):
+            if ~np.isnan(base[index]):
+                st=baseline_start[index]
+                #st=0 ##### uncomment to display entire trace
+                end=int((peaktime[index]+peak_decay)/dt)
+                #end=len(Vm_traces[goodtraces[index]]) #####uncomment to display entire trace
+                offset=0.001-baseline_start[index]*dt  #display 1msec prior to baseline_start
+                axes[panel].plot(time[st:end]+offset,Vm_traces[goodtraces[index],st:end]+index*spread,label=goodtraces[index])
+                axes[panel].plot(peaktime[index]+offset,peak[index]+index*spread,'k*')
+                if np.isnan(pospeak[index]):
+                        #print "nan detected", index, pospeaktime[index]+offset,int(pospeaktime[index]/dt)
+                        axes[panel].plot(pospeaktime[index]+offset,Vm_traces[goodtraces[index],int(pospeaktime[index]/dt)]+index*spread,'mD')
+                elif base[index]>pospeak[index]:
+                        axes[panel].plot(pospeaktime[index]+offset,pospeak[index]+index*spread,'r*')
+                else:
+                        axes[panel].plot(pospeaktime[index]+offset,pospeak[index]+index*spread,'ro')
+                axes[panel].plot(dt*baseline_start[index]+offset,base[index]+index*spread,'bo')
+                axes[panel].plot(popspikestart[index]+FVwidth+offset,Vm_traces[goodtraces[index],int(dt*popspikestart[index])]+index*spread,'b|')
+                axes[panel].plot(popspikestart[index]+offset,Vm_traces[goodtraces[index],int(dt*popspikestart[index])]+index*spread,'k|')
+        axes[panel].set_xlabel('Time (sec)')
+        axes[panel].legend(fontsize=7, loc='right')
+    fig.suptitle('black star=popspike,red o,* = pospeak, blue o = baseline, |=ps start/FV start')
+    axes[0].set_ylabel('Vm (mV)')
+    fig.canvas.draw()
+            #text=raw_input('next? (y/n)')
+    return fig,axes
+
+def plot_summary(popspikeminutes,popspikenorm,baselineminutes,popspike_timesamples,start_samples,Aopt,Bopt,fig,axes):
+    fig,axes=pyplot.subplots()
+    fig.canvas.set_window_title('Summary ')
+    axes.plot(popspikeminutes,popspikenorm,'b.')
+    axes.plot(popspikeminutes[0:baselineminutes],line(popspikeminutes[0:baselineminutes],Aopt,Bopt),'r')
+    start=np.insert(start_samples,0,0)
+    time_summary=popspikeminutes[start]
+    print ("summary at", len(start), "time points \n",np.column_stack((time_summary,popspike_timesamples[0:len(start)])))
+    axes.plot(time_summary,popspike_timesamples[0:len(start)],'ko')
+    return
         
 def read_labview(filename):
     with open(filename,'r') as f:
-        for line in f:
-            if "Samples" in line:
-                break
+            for line in f:
+                    if "Samples" in line:
+                            break
     timepoints_per_trace=int(line.split()[1])
     data = np.loadtxt(filename, skiprows=24) 
     #first column of datafile is time, second column is Vm
@@ -81,5 +134,5 @@ def read_labview(filename):
     #extract the start time for each trace
     tracetime=np.zeros(numtraces)
     for i,j in enumerate(range(0, datalength, timepoints_per_trace)):
-        tracetime[i]=wholetime[j]
+            tracetime[i]=wholetime[j]
     return Vm_traces,tracetime,dt,xtime

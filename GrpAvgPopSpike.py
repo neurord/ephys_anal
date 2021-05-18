@@ -14,8 +14,7 @@ print (os.getcwd())
 from matplotlib import pyplot
 
 #Change home (location of pickle files)
-home="C:\Users\Sarah\Documents\Python Scripts\\"
-os.chdir(home)
+home="C:\\Users\\Sarah\\Documents\\Python Scripts\\"
 
 import pop_spike_utilities as psu
 import GrpPlotUtil as grp_utl
@@ -40,7 +39,7 @@ nan_threshold=5     #do not use experiment if too many missing (nan) popspikes
 #if you list only one separation variable, you only get 2 windows in the graph
 sepvarlist=[['region',['DM']],['theta',[0, 5.0, 10.5]],['drug',['none','nitr', 'dmso', 'sch23390']]]#,['age',[50]]],#,['sex',['F','Fe','M']]]#
 #sepvarlist=[['theta',[0, 5.0, 10.5]],['drug', ['none']]]#,['age',[50]]]
-pattern = subdir+'*.pickle'
+pattern = home+subdir+'*.pickle'
 outfnames = sorted(glob.glob(pattern))
 print ("NUM FILES (before selection):", len(outfnames))
 
@@ -65,7 +64,7 @@ axes[1].set_ylabel('popspike-nan')
 axes[1].set_xlabel('Time (min)')
 nan_color=0
 nancount=[]
-
+######## Read in files
 for outfname in outfnames:
     with open(outfname) as f:
         datadict = pickle.load(f)
@@ -73,17 +72,21 @@ for outfname in outfnames:
         print ("file read:", datadict['parameters'],"baseline slope", round(datadict['trace']['slope'],6))
     exper_param = datadict['parameters']
     numnan=sum(np.isnan(datadict['trace']['popspikenorm']))
+    ############ Select subset of files based on user specified criteria ##########
     ignore1 = ((specify_params.sex and specify_params.sex != exper_param.sex) or 
                   (specify_params.age is not None and specify_params.age >= exper_param.age) or
                   (specify_params.maxage is not None and specify_params.maxage <= exper_param.age) or
                   (specify_params.drug and specify_params.drug != exper_param.drug) or
                   (specify_params.region and specify_params.region != exper_param.region) or
                   (specify_params.theta and specify_params.theta != exper_param.theta))
+    ########## identify experiments that do not meet includsion criteria ##########
     ignore2 = ((len(datadict['trace']['popspikenorm'])<minimum_sweeps) or
                   (np.abs(datadict['trace']['slope'])>slope_threshold) or
                   #-slope_std_factor*datadict['trace']['slope_std']
                   numnan>nan_threshold) #do not use trace if too many missing popspikes                                           
 
+    ########## provide information on experiments that do not meet includsion criteria ##########
+    ### instead of plotting, should put in separate container to plot later
     if ignore2 and not ignore1:
         if len(datadict['trace']['popspikenorm'])<minimum_sweeps:
             print ("!!!NOT ENOUGH goodtraces", datadict['parameters'].exper, len(datadict['trace']['popspikenorm']))
@@ -98,13 +101,15 @@ for outfname in outfnames:
         next
     else:
         if np.isnan(datadict['trace']['popspikenorm']).any():
-            print ("########## np.nan detected", exper_param.exper, datadict['anal_params'])
+     	   ### instead of plotting here, should put in separate container to plot later
+           print ("########## np.nan detected", exper_param.exper, datadict['anal_params'])
             axes[1].plot(datadict['trace']['popspikeminutes'],datadict['trace']['popspikenorm'],'+', label=datadict['parameters'].exper)
             nan_index=np.argwhere(np.isnan(datadict['trace']['popspikenorm']))
             axes[1].plot(datadict['trace']['popspikeminutes'][nan_index],np.ones((len(nan_index))),'o', label=datadict['parameters'].exper)
         if datadict['trace']['popspikenorm'][-1]==0.0:
             print ("@@@@@@@@@ check popSpikeAnal for", exper_param.exper, datadict['anal_params'])
         #print 'OK: {}'.format(exper_param)
+	###### change this to put into PANDAS dataframe
         DATAS.append(datadict['trace'])
         PARAMS.append(datadict['parameters'])
         ANAL.append(datadict['anal_params'])
@@ -114,6 +119,7 @@ for outfname in outfnames:
 axes[0].legend(fontsize=8, loc='best')
 axes[1].legend(fontsize=8, loc='best')
 fig.canvas.draw()
+#### Write separate function to do this
 if len(BAD):
     print ("&&&&&&&&&&&&& Bad Baselines")
     from scipy import optimize
@@ -156,17 +162,18 @@ else:
         ################ Write all of valid data for SAS: parameters and 5 min means of popspikenorm (ps_mean) and FVnorm (fv_means)
         SASoutput=np.column_stack((exper,Sex,Age,Drug,region,theta,ps_means, fv_means))
         SASheader="exper Sex Age drug region theta normpopspike norm_fv\n"
-        f=open("PARAMSforSAS.txt", 'w')
+        f=open(home+"PARAMSforSAS.txt", 'w')
         f.write(SASheader)
         np.savetxt(f, SASoutput, fmt='%s', delimiter='   ')
         f.close()
         Experheader="exper Sex Age drug region theta artifacthresh FVwidth artdecay noisethresh\n"
         Exper_list=np.column_stack((exper,Sex,Age,Drug,region,theta,artifacthresh,FVwidth, artdecay, noisethresh))
-        f=open("Experimentlist.txt", 'w')
+        f=open(home+"Experimentlist.txt", 'w')
         f.write(Experheader)
         np.savetxt(f, Exper_list, fmt='%s', delimiter='   ')
         f.close()
         #
+	#### Replace all the following with PANDAS commands - groupby the separation variables
         ######Separate out data into multiple arrays based on categorical variables
         for sepnum in range(len(sepvarlist)):
             sepvar=sepvarlist[sepnum][0]
@@ -201,7 +208,7 @@ else:
                             #print "       one exper in group - appending, no further splitting"
                     #else:
                             #print "       zero exper in group - no further splitting"
-        #
+        #### Calculate average of traces in each group - use PANDAS for this???
         numgroups=len(dict_grp)
         avgpopspikenorm_grp=[]
         stderrpopspikenorm_grp=[]
@@ -241,7 +248,7 @@ else:
         print ("&&&&&&&&&&&&& Summary Data")
         for gnum in range(numgroups):
             #construct output filename that tells you which experiments, e.g. Valid PSP
-            f=open(filenm[gnum]+".txt",'w')                      
+            f=open(home+filenm[gnum]+".txt",'w')                      
             outputdata=np.column_stack((minutes_grp[gnum], newcount_grp[gnum],
                                         100*avgpopspikenorm_grp[gnum], 100*stderrpopspikenorm_grp[gnum]))
             header="time "+filenm[gnum]+"count "+filenm[gnum]+"normpsAVG "+filenm[gnum]+"normpsSE "
