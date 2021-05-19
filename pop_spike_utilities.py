@@ -11,6 +11,7 @@ def parse_args(commandline,do_exit,flag):
     drug=['drug','--drug']
     theta=['theta','--theta']
     region=['region','--region']
+    estratiol=['estradiol','--estradiol']
     parser.add_argument(exp[flag], type=str, help = 'give exp name, for example: 031011_5Or')
     parser.add_argument('--no-graphs', '-g', dest='graphs', default=True, action='store_false') # -g optional and not position-defined (its absence OK too)
     parser.add_argument(sex[flag], type=str, choices=["M","F", "Fe"],help="male M or female F or Fe")
@@ -18,8 +19,9 @@ def parse_args(commandline,do_exit,flag):
     parser.add_argument(drug[flag], type=str, help="what drugs were in the ACFS")
     parser.add_argument(theta[flag], type=float, help="theta frequency (e.g. 5, 8, 10.5), enter 0 for no stim ctrl")   
     parser.add_argument(region[flag], type=str, choices=["DM", "DL"],help="dorsomedial: DM or dorsolateral: DL")
+    parser.add_argument(estradiol[flag], type=float, help="estradiol value, will default to -1 if value not specified", default=-1)
     
-   # parser.add_argument('-sample_times', '--list', default = [30,60,90,100], action='append', help = "Enter to modify sample_times (default = [30,60,90,100]),", required = True) 
+    # parser.add_argument('-sample_times', '--list', default = [30,60,90,100], action='append', help = "Enter to modify sample_times (default = [30,60,90,100]),", required = True) 
     parser.add_argument("--samp_time", nargs="+",default=[30,60,90,100],)   
     parser.add_argument("--sepvarlist", nargs="+",default=['sex','theta'],help='list of separation variables for grouping data')
     parser.add_argument('-decay', type = float,  default =1.7, help="artifact decay time (default: 1.7 msec)")
