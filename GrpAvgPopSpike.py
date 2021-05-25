@@ -17,9 +17,7 @@ import pop_spike_utilities as psu
 import GrpPlotUtil as grp_utl
 
 #Change home (location of pickle files)
-home="C:/Users/vlewitus/Documents/Python Scripts/"
-os.chdir(home)
-
+home="C:\\Users\\Sarah\\Documents\\Python Scripts\\"
 #this is subdir for pickle files.  Uncomment the appropriate one:
 #subdir="Pickle\\"
 #outputdir="GrpAvg\\"
@@ -56,7 +54,7 @@ nan_threshold=10     #do not use experiment if too many missing (nan) popspikes
 #sepvarlist=[['theta',[0, 5.0, 10.5]],['region',['DM']],['sex',['F','Fe','M','Fx']],['drug',['none','nitr','dmso','sch23390','cycl','kn93','mpp','dpn','phtpp','ppt','g1','g15']]]#['estradiol',[7]],],['age',[50]]],#,#
 #sepvarlist=[['theta',[0, 5.0, 10.5]],['drug', ['none']]]#,['age',[50]]]
 sepvarlist=[['theta',[0, 5.0, 10.5]],['drug',['none','nitr','dmso','sch23390','cycl','kn93','mpp','dpn','phtpp','ppt','g1','g15']]]
-pattern = subdir+'*.pickle'
+pattern = home+subdir+'*.pickle'
 outfnames = sorted(glob.glob(pattern))
 print ("NUM FILES (before selection):", len(outfnames))
 
@@ -81,7 +79,7 @@ axes[1].set_ylabel('popspike-nan')
 axes[1].set_xlabel('Time (min)')
 nan_color=0
 nancount=[]
-
+######## Read in files
 for outfname in outfnames:
     with open(outfname,'rb') as f:
         datadict = np.load(f, fix_imports=True)# np.load(f) #
@@ -89,6 +87,7 @@ for outfname in outfnames:
         print ("file read:", datadict['parameters'],"baseline slope", round(datadict['trace']['slope'],6))
     exper_param = datadict['parameters']
     numnan=sum(np.isnan(datadict['trace']['popspikenorm']))
+    ############ Select subset of files based on user specified criteria ##########
     ignore1 = ((specify_params.sex and specify_params.sex != exper_param.sex) or 
                 (specify_params.age is not None and specify_params.age >= exper_param.age) or
                 (specify_params.maxage is not None and specify_params.maxage <= exper_param.age) or
@@ -96,11 +95,14 @@ for outfname in outfnames:
                 (specify_params.region and specify_params.region != exper_param.region) or
                 (specify_params.theta and specify_params.theta != exper_param.theta) or
                 (specify_params.estradiol and specify_params.estradiol >exper_param.estradiol)) #to select only collected e2 values, put --estradiol '0.1' in ARGS
+    ########## identify experiments that do not meet includsion criteria ##########
     ignore2 = ((len(datadict['trace']['popspikenorm'])<minimum_sweeps) or
                 (np.abs(datadict['trace']['slope'])>slope_threshold) or
                 #-slope_std_factor*datadict['trace']['slope_std']
                 numnan>nan_threshold) #do not use trace if too many missing popspikes                                           
 
+    ########## provide information on experiments that do not meet includsion criteria ##########
+    ### instead of plotting, should put in separate container to plot later
     if ignore2 and not ignore1:
         if len(datadict['trace']['popspikenorm'])<minimum_sweeps:
             print ("!!!NOT ENOUGH goodtraces", datadict['parameters'].exper, len(datadict['trace']['popspikenorm']))
@@ -115,13 +117,14 @@ for outfname in outfnames:
         next
     else:
         if np.isnan(datadict['trace']['popspikenorm']).any():
-            print ("########## np.nan detected", exper_param.exper, datadict['anal_params'], 'number of nans:', np.isnan(datadict['trace']['popspikenorm']).sum())
+           print ("########## np.nan detected", exper_param.exper, datadict['anal_params'])
             axes[1].plot(datadict['trace']['popspikeminutes'],datadict['trace']['popspikenorm'],'+', label=datadict['parameters'].exper)
             nan_index=np.argwhere(np.isnan(datadict['trace']['popspikenorm']))
             axes[1].plot(datadict['trace']['popspikeminutes'][nan_index],np.ones((len(nan_index))),'o', label=datadict['parameters'].exper)
         if datadict['trace']['popspikenorm'][-1]==0.0:
             print ("@@@@@@@@@ check popSpikeAnal for", exper_param.exper, datadict['anal_params'])
         #print 'OK: {}'.format(exper_param)
+	###### change this to put into PANDAS dataframe
         DATAS.append(datadict['trace'])
         PARAMS.append(datadict['parameters'])
         ANAL.append(datadict['anal_params'])
@@ -131,7 +134,6 @@ for outfname in outfnames:
 axes[0].legend(fontsize=8, loc='best')
 axes[1].legend(fontsize=8, loc='best')
 fig.canvas.draw()
-
 if len(BAD):
 	print ("&&&&&&&&&&&&& Bad Baselines")
 	from scipy import optimize
@@ -156,117 +158,114 @@ if len(BAD):
 if (len(DATAS)==0):
 	print ("no expers meet your criteria")
 else:
-	#DATAS and datas contain ALL time series data for ALL cells that are valid
-	 ##can also add some summary measures for each cell, e.g. mean baselime, mean normpeakamp at a few time points
-	Sex=[p.sex for p in PARAMS]
-	Age=[p.age for p in PARAMS]
-	region=[p.region for p in PARAMS]
-	estradiol=[p.estradiol for p in PARAMS]
-	Drug=[p.drug for p in PARAMS]
-	theta=[p.theta for p in PARAMS]
-	exper=[p.exper for p in PARAMS]
-	#estradiol=[p.estradiol for p in PARAMS]
-	slope=[p['slope'] for p in DATAS]
-	slope_std=[p['slope_std'] for p in DATAS]
-	ps_means=[p['PS_mean'] for p in DATAS]
-	fv_means=[p['FV_means'] for p in DATAS]
-	artifacthresh=[p['artifactthresh'] for p in ANAL]
-	FVwidth=[p['FVwidth'] for p in ANAL]
-	artdecay=[p['artdecay'] for p in ANAL]
-	noisethresh=[p['noisethresh'] for p in ANAL]
-	dict_grp=DATAS
-	################ Write all of valid data for SAS: parameters and 5 min means of popspikenorm (ps_mean) and FVnorm (fv_means)
-	#SASoutput=np.column_stack((exper,Sex,Age,Drug,region,theta,estradiol,ps_means, fv_means))
-	SASoutput=np.column_stack((exper,Sex,Age,estradiol,Drug,region,theta,ps_means, fv_means))
-	#SASheader="exper Sex Age drug region theta estradiol normpopspike norm_fv\n"
-	SASheader="exper Sex Age estradiol drug region theta baseline normpopspike norm_fv\n"
-	f=open(outputdir+"PARAMSforSAS.txt", 'w')
-	f.write(SASheader)
-	np.savetxt(f, SASoutput, fmt='%s', delimiter='   ')
-	f.close()
-	Experheader="exper Sex Age drug region theta artifacthresh FVwidth artdecay noisethresh\n"
-	Exper_list=np.column_stack((exper,Sex,Age,estradiol,Drug,region,theta,artifacthresh,FVwidth, artdecay, noisethresh))
-	f=open(outputdir+"Experimentlist.txt", 'w')
-	f.write(Experheader)
-	np.savetxt(f, Exper_list, fmt='%s', delimiter='   ')
-	f.close()
-	#
-	######Separate out data into multiple arrays based on categorical variables
-	for sepnum in range(len(sepvarlist)):
-		sepvar=sepvarlist[sepnum][0]
-		sepvalue=sepvarlist[sepnum][1]
-		if sepnum==0:
-			print ("******first separation:",sepvar,', value=', sepvalue)
-			data_to_separate=DATAS #holds popspikenorm
-			params_to_separate=PARAMS
-			dict_grp,param_grp,=grp_utl.separate(data_to_separate,sepvar,sepvalue,params_to_separate)
-			print ('total exp:',len(DATAS),'; grp',sepvar,"=",sepvalue[0],'has',len(dict_grp[0]),'; grp', sepvar,"NE",sepvalue[0],'has',len(dict_grp[1]))
-		else:
-			print ("  ***additional separations:", sepvar, ', value=', sepvalue)
-			data_to_separate=dict_grp
-			dict_grp=[]
-			params_to_separate=param_grp
-			param_grp=[]
-			for num in range(np.shape(data_to_separate)[0]):
-				print ("    before sep of", sepvar, ", group:", num, "#exp=", np.shape(data_to_separate[num])[0])
-				if len(data_to_separate[num])>1:
-					tempdata,tempparam=grp_utl.separate(data_to_separate[num],sepvar,sepvalue,params_to_separate[num])
-					for i in range(len(tempdata)):
-						dict_grp.append(tempdata[i])
-						param_grp.append(tempparam[i])
-						if len(sepvalue)==1:
-							sep_phrase=" NE "+str(sepvalue[0])
-						else:
-							sep_phrase=" = "+str(sepvalue[i])
-							print ("       after ",'split; grp',sepvar,sep_phrase,'has', len(tempdata[i]))
-				elif len(data_to_separate[num])==1:
-					dict_grp.append(data_to_separate[num])
-					param_grp.append(params_to_separate[num])
-					print ("       one exper in group - appending, no further splitting")
-						#else:
-							#print "       zero exper in group - no further splitting"
+        #DATAS and datas contain ALL time series data for ALL cells that are valid
+        ##can also add some summary measures for each cell, e.g. mean baselime, mean normpeakamp at a few time points
+        Sex=[p.sex for p in PARAMS]
+        Age=[p.age for p in PARAMS]
+        region=[p.region for p in PARAMS]
+        Drug=[p.drug for p in PARAMS]
+        theta=[p.theta for p in PARAMS]
+        exper=[p.exper for p in PARAMS]
+        slope=[p['slope'] for p in DATAS]
+        slope_std=[p['slope_std'] for p in DATAS]
+        ps_means=[p['PS_mean'] for p in DATAS]
+        fv_means=[p['FV_means'] for p in DATAS]
+        artifacthresh=[p['artifactthresh'] for p in ANAL]
+        FVwidth=[p['FVwidth'] for p in ANAL]
+        artdecay=[p['artdecay'] for p in ANAL]
+        noisethresh=[p['noisethresh'] for p in ANAL]
+        dict_grp=DATAS
+        ################ Write all of valid data for SAS: parameters and 5 min means of popspikenorm (ps_mean) and FVnorm (fv_means)
+        SASoutput=np.column_stack((exper,Sex,Age,Drug,region,theta,ps_means, fv_means))
+        SASheader="exper Sex Age drug region theta normpopspike norm_fv\n"
+        f=open(home+"PARAMSforSAS.txt", 'w')
+        f.write(SASheader)
+        np.savetxt(f, SASoutput, fmt='%s', delimiter='   ')
+        f.close()
+        Experheader="exper Sex Age drug region theta artifacthresh FVwidth artdecay noisethresh\n"
+        Exper_list=np.column_stack((exper,Sex,Age,Drug,region,theta,artifacthresh,FVwidth, artdecay, noisethresh))
+        f=open(home+"Experimentlist.txt", 'w')
+        f.write(Experheader)
+        np.savetxt(f, Exper_list, fmt='%s', delimiter='   ')
+        f.close()
         #
-	numgroups=len(dict_grp)
-	avgpopspikenorm_grp=[]
-	stderrpopspikenorm_grp=[]
-	newcount_grp=[]
-	minutes_grp=[]
-	filenm=[]
-	paramgrpnum=[]
-	pnum=0
-	for groupnum in range(numgroups):
-		#print "\ncalculate average for: groupnum", groupnum,", numexpers=", len(dict_grp[groupnum]),
-		if len(dict_grp[groupnum])>1:
-			tempavg,tempstd,tmpcount= grp_utl.exp_avg(dict_grp[groupnum],'popspikenorm')
-			avgpopspikenorm_grp.append(tempavg)
-			stderrpopspikenorm_grp.append(tempstd/np.sqrt(len(dict_grp[groupnum])))
-			newcount_grp.append(tmpcount)
-			tempavg,tempstd,tmpcount= grp_utl.exp_avg(dict_grp[groupnum],'popspikeminutes')
-			minutes_grp.append(tempavg)
-			filenm.append(grp_utl.construct_filename(sepvarlist,param_grp[groupnum]))
-			paramgrpnum.append(pnum)
-			pnum=pnum+1
-			#print ', filename=',filenm[-1]
-		else:
-			if len(dict_grp[groupnum]):
-				avgpopspikenorm_grp.append(dict_grp[groupnum][0]['popspikenorm'])
-				stderrpopspikenorm_grp.append(np.zeros(len(dict_grp[groupnum][0]['popspikenorm'])))
-				newcount_grp.append(np.ones(len(dict_grp[groupnum][0]['popspikenorm'])))
-				minutes_grp.append(dict_grp[groupnum][0]['popspikeminutes'])
-				filenm.append(grp_utl.construct_filename(sepvarlist,param_grp[groupnum]))
-				paramgrpnum.append(pnum)
-				pnum=pnum+1
-				print (', filename=',filenm[-1])
-			else:
-				pnum=pnum+1
-				numgroups=numgroups-1
-				#print ', no output file for this group'
+	#### Replace all the following with PANDAS commands - groupby the separation variables
+        ######Separate out data into multiple arrays based on categorical variables
+        for sepnum in range(len(sepvarlist)):
+            sepvar=sepvarlist[sepnum][0]
+            sepvalue=sepvarlist[sepnum][1]
+            if sepnum==0:
+                #print "******first separation:",sepvar,', value=', sepvalue, 
+                data_to_separate=DATAS #holds popspikenorm
+                params_to_separate=PARAMS
+                dict_grp,param_grp,=grp_utl.separate(data_to_separate,sepvar,sepvalue,params_to_separate)
+                #print ', total exp:',len(DATAS),'; grp',sepvar,"=",sepvalue[0],'has',len(dict_grp[0]),'; grp', sepvar,"NE",sepvalue[0],'has',len(dict_grp[1])
+            else:
+                #print "  ***additional separations:", sepvar, ', value=', sepvalue
+                data_to_separate=dict_grp
+                dict_grp=[]
+                params_to_separate=param_grp
+                param_grp=[]
+                for num in range(np.shape(data_to_separate)[0]):
+                    #print "    before sep of", sepvar, ", group:", num, "#exp=", np.shape(data_to_separate[num])[0]
+                    if len(data_to_separate[num])>1:
+                        tempdata,tempparam=grp_utl.separate(data_to_separate[num],sepvar,sepvalue,params_to_separate[num])
+                        for i in range(len(tempdata)):
+                                dict_grp.append(tempdata[i])
+                                param_grp.append(tempparam[i])
+                                if len(sepvalue)==1:
+                                        sep_phrase=" NE "+str(sepvalue[0])
+                                else:
+                                        sep_phrase=" = "+str(sepvalue[i])
+                                #print "       after ",'split; grp',sepvar,sep_phrase,'has', len(tempdata[i])
+                    elif len(data_to_separate[num])==1:
+                            dict_grp.append(data_to_separate[num])
+                            param_grp.append(params_to_separate[num])
+                            #print "       one exper in group - appending, no further splitting"
+                    #else:
+                            #print "       zero exper in group - no further splitting"
+        #### Calculate average of traces in each group - use PANDAS for this???
+        numgroups=len(dict_grp)
+        avgpopspikenorm_grp=[]
+        stderrpopspikenorm_grp=[]
+        newcount_grp=[]
+        minutes_grp=[]
+        filenm=[]
+        paramgrpnum=[]
+        pnum=0
+        for groupnum in range(numgroups):
+            #print "\ncalculate average for: groupnum", groupnum,", numexpers=", len(dict_grp[groupnum]),
+            if len(dict_grp[groupnum])>1:
+                tempavg,tempstd,tmpcount= grp_utl.exp_avg(dict_grp[groupnum],'popspikenorm')
+                avgpopspikenorm_grp.append(tempavg)
+                stderrpopspikenorm_grp.append(tempstd/np.sqrt(len(dict_grp[groupnum])))
+                newcount_grp.append(tmpcount)
+                tempavg,tempstd,tmpcount= grp_utl.exp_avg(dict_grp[groupnum],'popspikeminutes')
+                minutes_grp.append(tempavg)
+                filenm.append(grp_utl.construct_filename(sepvarlist,param_grp[groupnum]))
+                paramgrpnum.append(pnum)
+                pnum=pnum+1
+                #print ', filename=',filenm[-1]
+            else:
+                if len(dict_grp[groupnum]):
+                    avgpopspikenorm_grp.append(dict_grp[groupnum][0]['popspikenorm'])
+                    stderrpopspikenorm_grp.append(np.zeros(len(dict_grp[groupnum][0]['popspikenorm'])))
+                    newcount_grp.append(np.ones(len(dict_grp[groupnum][0]['popspikenorm'])))
+                    minutes_grp.append(dict_grp[groupnum][0]['popspikeminutes'])
+                    filenm.append(grp_utl.construct_filename(sepvarlist,param_grp[groupnum]))
+                    paramgrpnum.append(pnum)
+                    pnum=pnum+1
+                    print (', filename=',filenm[-1])
+                else:
+                    pnum=pnum+1
+                    numgroups=numgroups-1
+                    #print ', no output file for this group'
         ####### Write output
-	print ("&&&&&&&&&&&&& Summary Data")
-	for gnum in range(numgroups):
-		#construct output filename that tells you which experiments, e.g. Valid PSP
-		f=open(outputdir+filenm[gnum]+".txt",'w')                      
-		outputdata=np.column_stack((minutes_grp[gnum], newcount_grp[gnum],
+        print ("&&&&&&&&&&&&& Summary Data")
+        for gnum in range(numgroups):
+            #construct output filename that tells you which experiments, e.g. Valid PSP
+            f=open(home+filenm[gnum]+".txt",'w')                      
+            outputdata=np.column_stack((minutes_grp[gnum], newcount_grp[gnum],
                                         100*avgpopspikenorm_grp[gnum], 100*stderrpopspikenorm_grp[gnum]))
 		header="time "+filenm[gnum]+"count "+filenm[gnum]+"normpsAVG "+filenm[gnum]+"normpsSE "
 		f.write(header+"\n")
