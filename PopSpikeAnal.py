@@ -1,5 +1,5 @@
-#Type something like this from within python: ARGS="2015_04_07_02 M 30 none 10.5 DM"
-#template: ARGS="filename sex age drugs theta region"
+#Type something like this from within python: ARGS="2015_04_07_02 M 30 none 10.5 DM -1"
+#template: ARGS="filename sex age drugs theta region estradiol"
 #then type: execfile('PopSpikeAnal.py')
 #If not in python, type: python PopSpikeAnal.py 031011_5Or M 30 none 10.5 DM
 import os
@@ -25,14 +25,14 @@ user="VL"	#see line 53-61 for location of directories for each user
 #1. such as labeling FV as Pop spike, make FVwidth or artdecaytime larger
 #2. labeling the end of the artifact as the popspike (make artdecaytime larger)
 # Units are msec, mV
-artdecaytime=1.7 #units: ms	3d: look for FV between artdecaytime and artdecaytime+FVwidth
-FVwidth=0.1 #units: ms	1st: look for pop spike AFTER FVwidth + artdecaytime
+artdecaytime=1.2 #units: ms	3d: look for FV between artdecaytime and artdecaytime+FVwidth
+FVwidth=1.2 #units: ms	1st: look for pop spike AFTER FVwidth + artdecaytime
 			#2nd: look for positive peak between artdecaytime and time of negative peak (pop spike)
-artifactthreshold=1.5 #units: mV make smaller if artifact is too small
+artifactthreshold=1 #units: mV make smaller if artifact is too small
 
 #####parameters that you may want to tweak ###############
 #If induction is not during the last pause in recording, you need to fix some of the code below
-first_peak_end_fraction=0.625	#do not look past this fraction of trace for the 1st popspike (maybe there is a second one that we will look for later).
+first_peak_end_fraction=0.25	#0.625 do not look past this fraction of trace for the 1st popspike (maybe there is a second one that we will look for later).
 artifact_window=0.5	#if artifact is not found in first artifact_window of trace, there is problem
 baseline_minutes=15
 noisethresh=1.5 #units: mV, if pospeak is this much greater than baseline, there may be a problem
@@ -50,10 +50,10 @@ sample_times=[30,60,90,120]
 #Search for files according to pattern datadir+params.exper+filename_ending
 filename_ending=".lvm"
 
-if user=="AK":
-	datadir="F:\FIELDS/ValerieData//"
+if user=="EB":
+	datadir="G:\Esprit//"
 	#where to put pickel files. Make sure this directory exists or the program won't work.
-	outputdir="C:/Users/Sarah/My Documents/Python Scripts/AlexData//"
+	outputdir="C:/Users/vlewitus/Documents/Python Scripts/Esprit Pickle//"
 if user=="VL":
 	#Directory where data is located
 	datadir="G:\FIELDS/ValerieData//"
@@ -188,7 +188,7 @@ for tracenum in goodtraces:
 		#Calculate base as mean of 1 ms prior to artifact
 		base[index]=np.mean(Vm_traces[tracenum,baseline_start[index]:artifactbegin])
 		#find negative peak and peak location, beginning at artifactdecay+FVwidth
-		neg_peakpoint=Vm_traces[tracenum,ps_start:first_peak_end].argmin()+ps_start
+		neg_peakpoint=Vm_traces[tracenum,ps_start:ps_start+first_peak_end].argmin()+ps_start
 		peaktime[index]=neg_peakpoint*dt
 		peak[index]=Vm_traces[tracenum,neg_peakpoint]
 		#find the peak which divides fiber volley and popspike
@@ -220,23 +220,32 @@ for tracenum in goodtraces:
 				offset=0.001-baseline_start[index]*dt #display 1msec prior to baseline_start
 				axes.plot(time[baseline_start[index]:]+offset,Vm_traces[tracenum,baseline_start[index]:]+index*0.1,label=tracenum)
 				axes.plot(pospeaktime[index]+offset,Vm_traces[tracenum,pospeakpoint]+index*0.1,'mo')
+				axes.plot(popspikestart[index]+offset,Vm_traces[tracenum,artifact_end]+index*0.1,'r*')
 				axes.plot(peaktime[index]+offset,Vm_traces[tracenum,neg_peakpoint]+index*0.1,'g*')
+				if (pospeak[index]-base[index])>noisethresh:
+					print ("WARNING!!!! positive peak is really big.  Is this OK?",tracenum)
+				elif (pospeakpoint-artifact_end)<2:
+					print ("WARNING!!!!! positive peakpoint found at end of artifact decay for trace",tracenum,'artifact:', artifactbegin*dt, 'peak:', pospeakpoint*dt  , "baset", baseline_start[index])
 				#pospeaktime[index]=np.nan
 				pospeak[index]=np.nan
 				amp[index]=np.nan
 				FVsize[index]=np.nan
 				problem+=1
-				if (pospeak[index]-base[index])>noisethresh:
-					print ("WARNING!!!! positive peak is really big.  Is this OK?")
-
-				elif (pospeakpoint-artifact_end)<2:
-					print ("WARNING!!!!! positive peakpoint found at end of artifact decay for trace",tracenum,'artifact:', artifactbegin*dt, 'peak:', pospeakpoint*dt  , "baset", baseline_start[index])
 			else:
 				#calculate amplitude as difference between negative peak and either baseline or positive peak
 				if base[index] > pospeak[index]:
 					amp[index]=(base[index]-peak[index])
 				else: 
 					amp[index] = (pospeak[index]-peak[index])
+#nan_thres=5
+#pos_vs_base_thres=5
+#if np.isnan(pospeak).sum()>nan_thres or (base-pospeak>0).sum()>pos_vs_base_thres:
+	#amp=base-peak
+#else: 
+	#amp = pospeak-peak
+				#these lines get rid of nans due to positive peak at end of artifact
+				#they make amplitude equal to baseline - neg peak instead of pos peak - neg peak in experiments with nans
+				#would replace lines 234 to 239
 axes.legend(fontsize=8, loc='best')
 
 pretrace_amp=amp[0:pretraces]
