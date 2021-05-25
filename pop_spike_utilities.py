@@ -13,17 +13,18 @@ def parse_args(commandline,do_exit,flag):
 	drug=['drug','--drug']
 	theta=['theta','--theta']
 	region=['region','--region']
+	estradiol=['estradiol','--estradiol']
 	parser.add_argument(exp[flag], type=str, help = 'give exp name, for example: 031011_5Or')
 	parser.add_argument('--no-graphs', '-g', dest='graphs', default=True, action='store_false') # -g optional and not position-defined (its absence OK too)
-	parser.add_argument(sex[flag], type=str, choices=["M","F", "Fe"],help="male M or female F or Fe")
+	parser.add_argument(sex[flag], type=str, choices=["M","F", "Fe", "Fx"],help="male M or female F or Fe")
 	parser.add_argument(age[flag], type=int, help="animal age in days")
 	parser.add_argument(drug[flag], type=str, help="what drugs were in the ACFS")
 	parser.add_argument(theta[flag], type=float, help="theta frequency (e.g. 5, 8, 10.5), enter 0 for no stim ctrl")
 	parser.add_argument(region[flag], type=str, choices=["DM", "DL"],help="dorsomedial: DM or dorsolateral: DL")
+	parser.add_argument(estradiol[flag], type=float, help="estradiol value, will default to -1 if value unspecified", default=-1)
 	if flag:
 		parser.add_argument('--maxage', type=int, help="maximum age of animals")
-	keydict={"sex":["M","F","Fe"],"region":["DM", "DL"]}
-
+	keydict={"sex":["M","F","Fe","Fx"],"region":["DM", "DL"]}
 	with open('choicedict.txt', "wb") as f: #open the choice dictionary, allowing it to be rewritten
 		pickle.dump(keydict, f) # same the choice dictionary, for use in analyzing groups of experiments
 
