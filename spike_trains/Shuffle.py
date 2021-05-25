@@ -1,8 +1,11 @@
 from __future__ import print_function as _, division as _
 import numpy as np
 
+def nonnancount(x):
+    return (~np.isnan(x)).sum()
+
 #different methods of shuffling
-def shuffle_everything(T):
+def shuffle_everything(T,shuffles,netsize):
     dT = np.diff(T, axis=1)
     dT = np.hstack((T.T[:1].T, dT))
     dT = np.concatenate([dT[None,...] for _ in range(shuffles)])
@@ -19,7 +22,7 @@ def shuffle_everything(T):
     print('newT.shape =', newT.shape, 'newT.dtype =', newT.dtype)
     return newT
 
-def shuffle_bursts(T):
+def shuffle_bursts(T,shuffles,netsize,isiBurstCutoff):
     dT = np.diff(T, axis=1)
     dT = np.hstack((T.T[:1].T, dT))
     dT = np.concatenate([dT[None,...] for _ in range(shuffles)])
@@ -52,7 +55,7 @@ def shuffle_bursts(T):
     print('newT.shape =', newT.shape, 'newT.dtype =', newT.dtype)
     return newT
 
-def shuffle_everything_first_long(T):
+def shuffle_everything_first_long(T,shuffles,netsize, isiBurstCutoff):
     dT = np.diff(T, axis=1)
     dT = np.hstack((T.T[:1].T, dT))
     dT = np.concatenate([dT[None,...] for _ in range(shuffles)])
@@ -76,7 +79,7 @@ def shuffle_everything_first_long(T):
     print('newT.shape =', newT.shape, 'newT.dtype =', newT.dtype)
     return newT
 
-def shuffle_everything_keep_initial(T, hedgehog_mode=False):
+def shuffle_everything_keep_initial(T, shuffles,netsize, hedgehog_mode=False):
     dT = np.diff(T, axis=1)
     dT = np.hstack((T.T[:1].T, dT))
     dT = np.concatenate([dT[None,...] for _ in range(shuffles)])
@@ -100,7 +103,7 @@ def shuffle_everything_keep_initial(T, hedgehog_mode=False):
     print('newT.shape =', newT.shape, 'newT.dtype =', newT.dtype)
     return newT
 
-def shuffle_everything_keep_initial_gaussian_shift(T):
+def shuffle_everything_keep_initial_gaussian_shift(T, shuffles,netsize, firstSpikeShift):
     dT = np.diff(T, axis=1)
     dT = np.hstack((T.T[:1].T, dT))
     dT = np.concatenate([dT[None,...] for _ in range(shuffles)])
@@ -127,7 +130,7 @@ def shuffle_everything_keep_initial_gaussian_shift(T):
     print('newT.shape =', newT.shape, 'newT.dtype =', newT.dtype)
     return newT
 
-def shuffle_everything_twice(T):
+def shuffle_everything_twice(T,shuffles,netsize, reshuffleOffset):
     newT = shuffle_everything_keep_initial(T)
     newT += reshuffleOffset
     newT %= totalTime
