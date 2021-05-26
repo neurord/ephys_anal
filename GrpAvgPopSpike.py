@@ -13,15 +13,28 @@ import os
 print (os.getcwd())
 from matplotlib import pyplot
 
-#Change home (location of pickle files)
-home="C:\Users\Sarah\Documents\Python Scripts\\"
-os.chdir(home)
-
 import pop_spike_utilities as psu
 import GrpPlotUtil as grp_utl
+
+#Change home (location of pickle files)
+home="C:\\Users\\Sarah\\Documents\\Python Scripts\\"
 #this is subdir for pickle files.  Uncomment the appropriate one:
-#subdir="AlexData\\"
-subdir="Pickle\\"
+#subdir="Pickle\\"
+#outputdir="GrpAvg\\"
+
+user="VL"
+
+if user=="EB":
+	subdir="Esprit Pickle\\"
+	#where to put pickel files. Make sure this directory exists or the program won't work.
+	outputdir="Esprit GrpAvg\\"
+if user=="VL":
+	#Directory where data is located
+	subdir="Pickle\\"
+	#where to put pickle files, relative to current path. Make sure this directory exists or the program won't work.
+	outputdir="GrpAvg\\"
+	
+	
 plot_individuals=0  #to plot PopSpike vs time for each experiment in a group
 plot_corr=0 #to plot  correlation between LTP (at summarytime) and age or baseline epsp
 print_info=0
@@ -34,13 +47,14 @@ minimum_sweeps=45      # <<<<<<<<<<<<<<<<<< units are minutes
 slope_std_factor=2     #<<<<<<<<<<<<<<<<<<< if slope +/- slope_std_factor*std includes 0, trace is valid, else slope too large
                        #Sarah actually allows a negative slope with potentiation and vice versa
 slope_threshold=0.01  #0.008-0.01 give good no-stim control
-nan_threshold=5     #do not use experiment if too many missing (nan) popspikes 
+nan_threshold=10     #do not use experiment if too many missing (nan) popspikes 
 ########## Specify separation variables for generating means to plot in Igor	
 ###For binary separation, list only one value; for > 2 values, must list each one
 #if you list only one separation variable, you only get 2 windows in the graph
-sepvarlist=[['region',['DM']],['theta',[0, 5.0, 10.5]],['drug',['none','nitr', 'dmso', 'sch23390']]]#,['age',[50]]],#,['sex',['F','Fe','M']]]#
+#sepvarlist=[['theta',[0, 5.0, 10.5]],['region',['DM']],['sex',['F','Fe','M','Fx']],['drug',['none','nitr','dmso','sch23390','cycl','kn93','mpp','dpn','phtpp','ppt','g1','g15']]]#['estradiol',[7]],],['age',[50]]],#,#
 #sepvarlist=[['theta',[0, 5.0, 10.5]],['drug', ['none']]]#,['age',[50]]]
-pattern = subdir+'*.pickle'
+sepvarlist=[['theta',[0, 5.0, 10.5]],['drug',['none','nitr','dmso','sch23390','cycl','kn93','mpp','dpn','phtpp','ppt','g1','g15']]]
+pattern = home+subdir+'*.pickle'
 outfnames = sorted(glob.glob(pattern))
 print ("NUM FILES (before selection):", len(outfnames))
 
@@ -65,32 +79,37 @@ axes[1].set_ylabel('popspike-nan')
 axes[1].set_xlabel('Time (min)')
 nan_color=0
 nancount=[]
-
+######## Read in files
 for outfname in outfnames:
-    with open(outfname) as f:
-        datadict = pickle.load(f)
+    with open(outfname,'rb') as f:
+        datadict = np.load(f, fix_imports=True)# np.load(f) #
     if print_info:
         print ("file read:", datadict['parameters'],"baseline slope", round(datadict['trace']['slope'],6))
     exper_param = datadict['parameters']
     numnan=sum(np.isnan(datadict['trace']['popspikenorm']))
+    ############ Select subset of files based on user specified criteria ##########
     ignore1 = ((specify_params.sex and specify_params.sex != exper_param.sex) or 
-                  (specify_params.age is not None and specify_params.age >= exper_param.age) or
-                  (specify_params.maxage is not None and specify_params.maxage <= exper_param.age) or
-                  (specify_params.drug and specify_params.drug != exper_param.drug) or
-                  (specify_params.region and specify_params.region != exper_param.region) or
-                  (specify_params.theta and specify_params.theta != exper_param.theta))
+                (specify_params.age is not None and specify_params.age >= exper_param.age) or
+                (specify_params.maxage is not None and specify_params.maxage <= exper_param.age) or
+                (specify_params.drug and specify_params.drug != exper_param.drug) or
+                (specify_params.region and specify_params.region != exper_param.region) or
+                (specify_params.theta and specify_params.theta != exper_param.theta) or
+                (specify_params.estradiol and specify_params.estradiol >exper_param.estradiol)) #to select only collected e2 values, put --estradiol '0.1' in ARGS
+    ########## identify experiments that do not meet includsion criteria ##########
     ignore2 = ((len(datadict['trace']['popspikenorm'])<minimum_sweeps) or
-                  (np.abs(datadict['trace']['slope'])>slope_threshold) or
-                  #-slope_std_factor*datadict['trace']['slope_std']
-                  numnan>nan_threshold) #do not use trace if too many missing popspikes                                           
+                (np.abs(datadict['trace']['slope'])>slope_threshold) or
+                #-slope_std_factor*datadict['trace']['slope_std']
+                numnan>nan_threshold) #do not use trace if too many missing popspikes                                           
 
+    ########## provide information on experiments that do not meet includsion criteria ##########
+    ### instead of plotting, should put in separate container to plot later
     if ignore2 and not ignore1:
         if len(datadict['trace']['popspikenorm'])<minimum_sweeps:
             print ("!!!NOT ENOUGH goodtraces", datadict['parameters'].exper, len(datadict['trace']['popspikenorm']))
         if np.abs(datadict['trace']['slope'])>slope_threshold:
             print ("!!!BAD baseline", datadict['parameters'].exper,  "slope u,s", round(datadict['trace']['slope'],6),round(datadict['trace']['slope_std'],6))
             axes[0].plot(datadict['trace']['popspikeminutes'],datadict['trace']['popspikenorm'],'.', label=datadict['parameters'].exper)
-            BAD.append(datadict)
+        BAD.append(datadict)
         #text=raw_input('continue? (y/n)')
     if ignore1 or ignore2:
         if print_info:
@@ -98,13 +117,14 @@ for outfname in outfnames:
         next
     else:
         if np.isnan(datadict['trace']['popspikenorm']).any():
-            print ("########## np.nan detected", exper_param.exper, datadict['anal_params'])
+           print ("########## np.nan detected", exper_param.exper, datadict['anal_params'])
             axes[1].plot(datadict['trace']['popspikeminutes'],datadict['trace']['popspikenorm'],'+', label=datadict['parameters'].exper)
             nan_index=np.argwhere(np.isnan(datadict['trace']['popspikenorm']))
             axes[1].plot(datadict['trace']['popspikeminutes'][nan_index],np.ones((len(nan_index))),'o', label=datadict['parameters'].exper)
         if datadict['trace']['popspikenorm'][-1]==0.0:
             print ("@@@@@@@@@ check popSpikeAnal for", exper_param.exper, datadict['anal_params'])
         #print 'OK: {}'.format(exper_param)
+	###### change this to put into PANDAS dataframe
         DATAS.append(datadict['trace'])
         PARAMS.append(datadict['parameters'])
         ANAL.append(datadict['anal_params'])
@@ -115,23 +135,25 @@ axes[0].legend(fontsize=8, loc='best')
 axes[1].legend(fontsize=8, loc='best')
 fig.canvas.draw()
 if len(BAD):
-    print ("&&&&&&&&&&&&& Bad Baselines")
-    from scipy import optimize
-    badexper=[p['parameters'].exper for p in BAD]
-    badps=[p['trace']['popspikenorm'] for p in BAD]
-    badx=[p['trace']['popspikeminutes'] for p in BAD]
-    badslope=[p['trace']['slope'] for p in BAD]
-    for i in range(len(badexper)):
-        baseline_end=np.min(np.where(badx[i]>0))
-        validbasepts=~np.isnan(badps[i][0:baseline_end])
-        popt,pcov=optimize.curve_fit(psu.line,badx[i][validbasepts],badps[i][validbasepts])
-        Aopt,Bopt=popt
-        Astd,Bstd=np.sqrt(np.diag(pcov))
-        validbasepts=~np.isnan(badps[i][5:baseline_end])
-        popt,pcov=optimize.curve_fit(psu.line,badx[i][validbasepts],badps[i][validbasepts])
-        Aopt,shortBopt=popt
-        Astd,shortBstd=np.sqrt(np.diag(pcov))
-        print ("bad baseline", badexper[i], "slope",round(Bopt,5), "+/-", round(Bstd,5), "10min slope", round(shortBopt,6), round(shortBstd,5))
+	print ("&&&&&&&&&&&&& Bad Baselines")
+	from scipy import optimize
+	badexper=[p['parameters'].exper for p in BAD]
+	badps=[p['trace']['popspikenorm'] for p in BAD]
+	badx=[p['trace']['popspikeminutes'] for p in BAD]
+	badslope=[p['trace']['slope'] for p in BAD]
+	for i in range(len(badexper)):
+		baseline_end=np.min(np.where(badx[i]>0))
+		validbasepts=~np.isnan(badps[i])
+		validbasepts[baseline_end:]=False
+		popt,pcov=optimize.curve_fit(psu.line,badx[i][validbasepts],badps[i][validbasepts]) #boolean index error, so commented if (BAD) out. see PopSpikeAnal line 288
+		Aopt,Bopt=popt
+		Astd,Bstd=np.sqrt(np.diag(pcov))
+		validbasepts[0:5]=False
+		popt,pcov=optimize.curve_fit(psu.line,badx[i][validbasepts],badps[i][validbasepts])
+		Aopt,shortBopt=popt
+		Astd,shortBstd=np.sqrt(np.diag(pcov))
+		print ("bad baseline", badexper[i], "slope",round(Bopt,5), "+/-", round(Bstd,5), "10min slope", round(shortBopt,6), round(shortBstd,5))
+
 #Calculate average over all data that meets criteria
 if (len(DATAS)==0):
 	print ("no expers meet your criteria")
@@ -156,17 +178,18 @@ else:
         ################ Write all of valid data for SAS: parameters and 5 min means of popspikenorm (ps_mean) and FVnorm (fv_means)
         SASoutput=np.column_stack((exper,Sex,Age,Drug,region,theta,ps_means, fv_means))
         SASheader="exper Sex Age drug region theta normpopspike norm_fv\n"
-        f=open("PARAMSforSAS.txt", 'w')
+        f=open(home+"PARAMSforSAS.txt", 'w')
         f.write(SASheader)
         np.savetxt(f, SASoutput, fmt='%s', delimiter='   ')
         f.close()
         Experheader="exper Sex Age drug region theta artifacthresh FVwidth artdecay noisethresh\n"
         Exper_list=np.column_stack((exper,Sex,Age,Drug,region,theta,artifacthresh,FVwidth, artdecay, noisethresh))
-        f=open("Experimentlist.txt", 'w')
+        f=open(home+"Experimentlist.txt", 'w')
         f.write(Experheader)
         np.savetxt(f, Exper_list, fmt='%s', delimiter='   ')
         f.close()
         #
+	#### Replace all the following with PANDAS commands - groupby the separation variables
         ######Separate out data into multiple arrays based on categorical variables
         for sepnum in range(len(sepvarlist)):
             sepvar=sepvarlist[sepnum][0]
@@ -201,7 +224,7 @@ else:
                             #print "       one exper in group - appending, no further splitting"
                     #else:
                             #print "       zero exper in group - no further splitting"
-        #
+        #### Calculate average of traces in each group - use PANDAS for this???
         numgroups=len(dict_grp)
         avgpopspikenorm_grp=[]
         stderrpopspikenorm_grp=[]
@@ -241,31 +264,30 @@ else:
         print ("&&&&&&&&&&&&& Summary Data")
         for gnum in range(numgroups):
             #construct output filename that tells you which experiments, e.g. Valid PSP
-            f=open(filenm[gnum]+".txt",'w')                      
+            f=open(home+filenm[gnum]+".txt",'w')                      
             outputdata=np.column_stack((minutes_grp[gnum], newcount_grp[gnum],
                                         100*avgpopspikenorm_grp[gnum], 100*stderrpopspikenorm_grp[gnum]))
-            header="time "+filenm[gnum]+"count "+filenm[gnum]+"normpsAVG "+filenm[gnum]+"normpsSE "
-            f.write(header+"\n")
-            np.savetxt(f,outputdata, fmt='%7.5f',delimiter='   ') #'%7.4f' = format is float with 7 characters, 4 after decimal
-            f.close()
-            #print some summary information, 25 min = 40 samples
-            firstpt=np.min(np.where(minutes_grp[gnum]>summarytime[0]))
-            lastpt=np.max(np.where(minutes_grp[gnum]<summarytime[1]))
-            print ('Grp',filenm[gnum], 'at', summarytime,'minutes: ', np.mean(avgpopspikenorm_grp[gnum][firstpt:lastpt]),' n=',newcount_grp[gnum][0])
-            print ('SD', np.mean(stderrpopspikenorm_grp[gnum][firstpt:lastpt])*np.sqrt(newcount_grp[gnum][0]))
-        ########## End of data separation
-        ######## Plot results
-        grp_utl.plot_groups(avgpopspikenorm_grp,stderrpopspikenorm_grp,minutes_grp,newcount_grp,filenm,sepvarlist,param_grp,paramgrpnum)
+		header="time "+filenm[gnum]+"count "+filenm[gnum]+"normpsAVG "+filenm[gnum]+"normpsSE "
+		f.write(header+"\n")
+		np.savetxt(f,outputdata, fmt='%7.5f',delimiter='   ') #'%7.4f' = format is float with 7 characters, 4 after decimal
+		f.close()
+		#print some summary information, 25 min = 40 samples
+		firstpt=np.min(np.where(minutes_grp[gnum]>summarytime[0]))
+		lastpt=np.max(np.where(minutes_grp[gnum]<summarytime[1]))
+		print ('Grp',filenm[gnum], 'at', summarytime,'minutes: ', np.mean(avgpopspikenorm_grp[gnum][firstpt:lastpt]),' n=',newcount_grp[gnum][0])
+		print ('SD', np.mean(stderrpopspikenorm_grp[gnum][firstpt:lastpt])*np.sqrt(newcount_grp[gnum][0]))
+	########## End of data separation
+	######## Plot results
+	grp_utl.plot_groups(avgpopspikenorm_grp,stderrpopspikenorm_grp,minutes_grp,newcount_grp,filenm,sepvarlist,param_grp,paramgrpnum)
 
 print (str(len(DATAS))+'experiments met criteria.')
 
 if plot_individuals:
-  for gnum in range(numgroups):
-    grp_utl.plot_onegroup(dict_grp[paramgrpnum[gnum]],param_grp[paramgrpnum[gnum]], filenm[gnum])       
+	for gnum in range(numgroups):
+	  grp_utl.plot_onegroup(dict_grp[paramgrpnum[gnum]],param_grp[paramgrpnum[gnum]], filenm[gnum])       
 
 if plot_corr:
-    min25_to_30=1
-    min55_to_60=2
-    sampletime=min25_to_30
-    grp_utl.plot_corr(dict_grp,param_grp,paramgrpnum,numgroups,filenm,sampletime)
-
+	min25_to_30=1
+	min55_to_60=2
+	sampletime=min25_to_30
+	grp_utl.plot_corr(dict_grp,param_grp,paramgrpnum,numgroups,filenm,sampletime)
