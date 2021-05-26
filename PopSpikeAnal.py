@@ -237,15 +237,16 @@ for tracenum in goodtraces:
 					amp[index]=(base[index]-peak[index])
 				else: 
 					amp[index] = (pospeak[index]-peak[index])
+#these lines get rid of nans due to positive peak at end of artifact
+#they make amplitude equal to baseline - neg peak instead of pos peak - neg peak in experiments with nans
+#would replace lines 234 to 239
 #nan_thres=5
 #pos_vs_base_thres=5
 #if np.isnan(pospeak).sum()>nan_thres or (base-pospeak>0).sum()>pos_vs_base_thres:
-	#amp=base-peak
+#if np.any(np.isnan(pospeak)) or np.any(base-pospeak>0):
+#	amp=base-peak
 #else: 
-	#amp = pospeak-peak
-				#these lines get rid of nans due to positive peak at end of artifact
-				#they make amplitude equal to baseline - neg peak instead of pos peak - neg peak in experiments with nans
-				#would replace lines 234 to 239
+#	amp = pospeak-peak
 axes.legend(fontsize=8, loc='best')
 
 pretrace_amp=amp[0:pretraces]
