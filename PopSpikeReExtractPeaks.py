@@ -9,7 +9,7 @@ import pop_spike_utilities as psu
 ms_per_sec=1000
 
 def find_files(subdir):
-	pattern = subdir+'202111*.pickle'
+	pattern = subdir+'202201*.pickle'
 	outfnames = sorted(glob.glob(pattern))
 	if not len(outfnames):
 		print('************ No files found *********')
@@ -17,6 +17,7 @@ def find_files(subdir):
 	
 def analyze_files(fnames,new_outdir,do_exit):
 	#loop over all analyzed exepriments
+	slopechange=[]
 	for outfname in fnames:
 		with open(outfname, 'rb') as f:
 			#open pickle file
@@ -63,13 +64,18 @@ def analyze_files(fnames,new_outdir,do_exit):
 			pop_spike.summaryMeasure()
 			print('PREVIOUS SLOPE for', params.exper,'=',old_slope,'+/-',old_slope_std)
 			pop_spike.showSummaryPlot(plot=True)
+			if np.abs((old_slope-pop_spike.Bopt)/old_slope)>0.1: #percent change from old slope
+				param_dict['old slope']=old_slope
+				param_dict['new slope']=round(pop_spike.Bopt,6)
+				slopechange.append(param_dict)
 			pop_spike.params.exper=pop_spike.params.exper+'_newb'
 			pop_spike.params.outputdir=new_outdir
 			pop_spike.saveData()  #save data in new directory called, e.g. "fixed baseline"
 			#create additional file that lists experiments in which original baseline was good, and now is not
 			# or original baseline was bad, and now is good
+	return slopechange
 
-ARGS='C:\\Users\\kblackw1\\Documents\\Python_Scripts\\ephys_anal\\PopSpike2\\ C:\\Users\\kblackw1\\Documents\\Python_Scripts\\ephys_anal\\PopSpike2\\temp\\'			
+ARGS='C:\\Users\\vlewitus\\Documents\\Python_Scripts\\Pickle\\ C:\\Users\\vlewitus\\Documents\\Python_Scripts\\Pickle_new_baseline\\'			
 if __name__=='__main__':
     try:
         commandline = ARGS.split() # ARGS="pickle_dir new_outputdir "
@@ -81,4 +87,17 @@ if __name__=='__main__':
 pickledir=commandline[0]
 new_outdir=commandline[1]
 pickle_files=find_files(pickledir)
-analyze_files(pickle_files,new_outdir,do_exit)
+slopechange=analyze_files(pickle_files,new_outdir,do_exit)
+if len(slopechange):
+	print(slopechange)
+	######### Write text file of experiments that have significant slope changes ####
+	variables=['exper','old slope','new slope','sex','age','drug','theta','region','decay','artthresh','FVwidth','first_peak_end_frac','base_min','noisethres']
+	header='   '.join(variables)
+	f=open('slopechange.txt','w')
+	f.write(header+'\n')
+	for exper in slopechange:
+		newline='   '.join([str(exper[k]) for k in variables])
+		f.write(newline+'\n')
+	f.close()
+else:
+	print('NO MAJOR SLOPE CHANGE')
