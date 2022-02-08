@@ -40,7 +40,7 @@ class PopSpike:
         self.FVwidth =params.FVwidth*sec_per_msec
         self.induction_gap_time=1.1 #multiplicative factor
         self.baselinepoints=10
-        self.prestimbaseline=True
+        self.prestimbaseline=False
         self.baseline_dur=1 #ms
         
         self.anal_params={'artdecay':self.artdecaytime, 'FVwidth':self.FVwidth, 'noisethresh':self.noisethresh, 
@@ -71,7 +71,7 @@ class PopSpike:
                 print("exiting")
                 raise Exception('wrong stimulation rate')
         #try to not use [index], do not have return from fuctions
-        return
+        return 
         
     def find_induction_gap(self):
         #convert_msec_to_points
@@ -358,10 +358,11 @@ class PopSpike:
             pickle.dump(datadict, f) #saves the contents of datadict in file "f"...       
         return
             
-######## Main ########## ARGS here are for testing the code            
-ARGS="20160822orangedm105 M 30 none 10.5 DM -decay 1.6 -FVwidth 1.1"            
+         
 
 if __name__=='__main__':
+	######## Main ########## ARGS here are for testing the code            
+    #ARGS="20160822orangedm105 M 30 none 10.5 DM -decay 1.6 -FVwidth 1.1"   
     try:
         commandline = ARGS.split() # ARGS="2015_04_07_02 M 30 none 10.5 DM "
         do_exit = False
