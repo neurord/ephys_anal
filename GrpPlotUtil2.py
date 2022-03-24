@@ -75,17 +75,6 @@ def plot_groups(avg_grp,stderr_grp,minutes_grp,count,filenm,sepvarlist,sepvardic
         axes[axnum].legend(fontsize=10, loc='best')
     return 
 
-def construct_filename(sepvarlist,paramgrp): #fix this for single separation variable
-    filnm=''
-    for sepnum in range(len(sepvarlist)):
-        sepvar=sepvarlist[sepnum]
-        if len(sepvarlist)==1:
-            attr=paramgrp
-        else:
-            attr=paramgrp[sepnum]
-        filnm=filnm+sepvar+str(attr)+'_'
-    return filnm[0:-1]
-
 def opto_filename(sepvarlist,paramgrp,llval):
     filnm=''
     for sepnum in range(len(sepvarlist)):

@@ -27,7 +27,8 @@ class GrpPopSpike:
         self.minimum_sweeps=45     
         self.slope_threshold=0.01  
         self.nan_threshold=20 
-		self.baseline_amp=0.5
+        self.baseline_min=0.4
+        self.baseline_max=2
         self.plot_individuals=int(params.plot_ctrl[1])  #to plot PopSpike vs time for each experiment in a group
         self.plot_corr=int(params.plot_ctrl[2]) #to plot  correlation between LTP (at summarytime) and age or baseline epsp
         self.print_info=1
@@ -36,7 +37,7 @@ class GrpPopSpike:
         self.pattern = self.subdir+'20*.pickle'
         self.outfnames = sorted(glob.glob(self.pattern))
         if not len(self.outfnames):
-            print('************ No files found *********')
+            sys.exit('************ No files found *********')
         self.BAD = []
        
     def read_data(self): 
@@ -58,34 +59,35 @@ class GrpPopSpike:
                           (self.params.region and self.params.region != exper_param.region) or
                           (self.params.theta and self.params.theta != exper_param.theta))
             ########## identify experiments that do not meet includsion criteria ##########
-            ignore2 = ((len(datadict['trace']['popspikenorm'])<self.minimum_sweeps) or
+            exclude = ((len(datadict['trace']['popspikenorm'])<self.minimum_sweeps) or
                           (np.abs(datadict['trace']['slope'])>self.slope_threshold) or
                           #-self.slope_std_factor*datadict['trace']['slope_std']
-                          numnan>self.nan_threshold) or
-						  datadict['trace']['popspike_timesamples'][0]<self.baseline_amp) #do not use trace if too many missing popspikes
-            if ignore2 and not ignore1:
+                          numnan>self.nan_threshold or #do not use trace if too many missing popspikes
+						  datadict['trace']['PS_mean'][0]<self.baseline_min)
+            if exclude and not ignore1:
                 if len(datadict['trace']['popspikenorm'])<self.minimum_sweeps:
                     print ("!!!NOT ENOUGH goodtraces", datadict['parameters'].exper, len(datadict['trace']['popspikenorm']))
                 elif np.abs(datadict['trace']['slope'])>self.slope_threshold:
                     print ("!!!BAD baseline", datadict['parameters'].exper,  "slope u,s", round(datadict['trace']['slope'],6),round(datadict['trace']['slope_std'],6))
+                elif datadict['trace']['PS_mean'][0]<self.baseline_min:
+                    print ("!!!PSP amp too low", datadict['trace']['PS_mean'][0])
                 else:
                     print('!!! Too many Nans',numnan)
                 self.BAD.append(datadict) #Don't change until you have the ploting function
                 #text=raw_input('continue? (y/n)')
                 #Ignore 2 is T if pop spike 2 doesn't have enough sweep. Ignore 2 means do not use it if its bad 
-            if ignore1 or ignore2:
                 if self.print_info:
-                    print ("***** ignoring:", ignore1,ignore2,datadict['parameters'])
+                    print ("***** excluding:", datadict['parameters'])
                 next 
-            else:
-                if np.isnan(datadict['trace']['popspikenorm']).any():
+            elif ignore1: #regardless of whether data meets exclusion criteria
+                if self.print_info:
+                    print ("***** ignoring:", datadict['parameters'])
+                next 
+            else: #data meets all criteria
+                if np.isnan(datadict['trace']['popspikenorm']).any(): #inform about nans, even if using data
                     print ("########## np.nan detected", numnan,'times in',exper_param.exper, datadict['anal_params'])
-                if datadict['trace']['popspikenorm'][-1]==0.0:
+                if datadict['trace']['popspikenorm'][-1]==0.0: #last popspike is 0, why????
                     print ("@@@@@@@@@ check popSpikeAnal for", exper_param.exper, datadict['anal_params'])
-                    
-                    ###### change this to put into PANDAS dataframe
-            # Wait until you can accumilate the data. 
-            #Take out the selfs in datadict b/c it changes.
                 DATAS.append(datadict['trace'])
                 PARAMS = PARAMS.append(vars(datadict['parameters']), ignore_index = True)
                 ANAL=ANAL.append(datadict['anal_params'],ignore_index=True)
@@ -111,7 +113,7 @@ class GrpPopSpike:
             #self.avgpopspikenorm[grp]=np.nanmean(self.grp_data.get_group(grp).popspikenorm) 
             #self.minutes[grp]= np.mean(self.grp_data.get_group(grp).popspikeminutes) 
             #self.stderrpopspikenorm[grp]= np.std(self.grp_data.get_group(grp).popspikenorm)/np.sqrt(self.samples(grp)) 
-            self.filenm[grp]=grp_utl.construct_filename(sepvarlist,grp)
+            self.filenm[grp]=self.construct_filename(sepvarlist,grp)
         #this dictionary is used for plotting in GrpPlotUtil
         self.sepvardict={}
         for sv in self.sepvarlist:
@@ -132,17 +134,19 @@ class GrpPopSpike:
 
         fig,axes=pyplot.subplots(2,1)
         fig.canvas.set_window_title('Problems')
-        axes[0].set_ylabel('popspike-bad slope')
+        axes[0].set_ylabel('popspike-bad slope or psp amp')
         axes[1].set_ylabel('popspike-nan')
         axes[1].set_xlabel('Time (min)')
         for bad_data in self.BAD: 
-            axes[0].plot(bad_data['trace']['popspikeminutes'],bad_data['trace']['popspikenorm'],'.', label=bad_data['parameters'].exper)
             if np.isnan(bad_data['trace']['popspikenorm']).any():
              	  ### instead of plotting here, should put in separate container to plot later
                   print ("########## np.nan detected", bad_data['parameters'].exper, bad_data['anal_params'])
-                  axes[1].plot(bad_data['trace']['popspikeminutes'],bad_data['trace']['popspikenorm'],'+', label=bad_data['parameters'].exper)
+                  p=axes[1].plot(bad_data['trace']['popspikeminutes'],bad_data['trace']['popspikenorm'],'+', label=bad_data['parameters'].exper)
+                  color = p[-1].get_color()
                   nan_index=np.argwhere(np.isnan(bad_data['trace']['popspikenorm']))
-                  axes[1].plot(bad_data['trace']['popspikeminutes'][nan_index],np.ones((len(nan_index))),'o', label= bad_data['parameters'].exper)
+                  axes[1].plot(bad_data['trace']['popspikeminutes'][nan_index],np.ones((len(nan_index))),'o', color=color)
+            else:
+                  axes[0].plot(bad_data['trace']['popspikeminutes'],bad_data['trace']['popspikenorm'],'.', label=bad_data['parameters'].exper)
             if bad_data['trace']['popspikenorm'][-1]==0.0:
                     print ("@@@@@@@@@ check popSpikeAnal for", bad_data['parameters'].exper, bad_data['anal_params'])
                 #print 'OK: {}'.format(exper_param)
@@ -153,9 +157,14 @@ class GrpPopSpike:
         fig.canvas.draw()
 
     def write_stat_data(self):
-        params = ['exper', 'sex', 'age', 'region', 'estradiol', 'theta', 'drug']
+        params = ['exper', 'sex', 'age', 'region', 'theta', 'drug']
         SASoutput = self.whole_df[params] #in to a 2d array you write it into SASoutput. 
         SASheader= ' '.join(params)
+        sample_times=[30,60] ####### FIXME: hard coded sample times
+        for row in range(len(self.whole_df)):
+            for index in range(0,len(sample_times)):
+                norm_index=np.min(np.where(self.whole_df.iloc[row]['popspikeminutes']>sample_times[index]))
+                self.whole_df.iloc[row].PS_mean[index+1]=np.nanmean(self.whole_df.iloc[row]['popspikenorm'][norm_index-2:norm_index+1])
         for col in range(len(self.whole_df.PS_mean[0])):
             psmean=[row[col] for row in self.whole_df.PS_mean]
             if not np.all([np.isnan(k) for k in psmean]):
@@ -168,7 +177,30 @@ class GrpPopSpike:
         f.write(SASheader +"\n")
         np.savetxt(f, SASoutput, fmt='%s', delimiter='   ')
         f.close()
-
+    def bar_graph_data(self,exclude_name):
+        lines=[]
+        for grp in Grp_PS.grp_data.groups.keys():
+           #[0:3] gives you baseline amp, 30min and 60 min
+           PS_mean=Grp_PS.grp_data.get_group(grp).PS_mean.values
+           line=[grp]+[np.mean(PS_mean,axis=0)[1]*100]+[(np.std(PS_mean,axis=0)[1]/np.sqrt(len(PS_mean)))*100]
+           lines.append(line)
+           #print(line,np.std(PS_mean,axis=0)[1])
+        prefix=self.common_filename()
+        f=open(prefix+"_BarGraphmeans.txt", 'w')
+        f.write('  '.join(Grp_PS.sepvarlist)+'mean    sterr \n')
+        np.savetxt(f, lines, fmt='%s', delimiter='   ')
+        f.close()
+        for grp in Grp_PS.grp_data.groups.keys():
+            PS_mean=Grp_PS.grp_data.get_group(grp).PS_mean.values
+            data_column=[ps[1]*100 for ps in PS_mean] #convert the 30 min time point to percent
+            f=open(self.filenm[grp]+"_points.txt",'w')
+            if isinstance(grp,tuple):
+                columnheading=[prefix+str(p) for i,p in enumerate(grp) if self.sepvarlist[i] not in exclude_name]     #assumes you don't want theta as part of column name ; assumes drug comes before sex in ARGS           
+            else:
+                columnheading=[prefix+grp]
+            f.write('_'.join(columnheading)+"_data\n")
+            np.savetxt(f,data_column, fmt='%7.5f',delimiter='   ') #'%7.4f' = format is float with 7 characters, 4 after decimal
+            f.close()
     def write_traces(self):
         frac_2_percent = 100
         for gnum in self.grp_data.groups.keys():
@@ -179,8 +211,22 @@ class GrpPopSpike:
             f.write(header+"\n")
             np.savetxt(f,outputdata, fmt='%7.5f',delimiter='   ') #'%7.4f' = format is float with 7 characters, 4 after decimal
             f.close()
+    def common_filename(self):			
+        filnm=''
+        for p in [self.params.drug,self.params.sex,self.params.region,self.params.theta]:
+            if p is not None:
+                filnm=filnm+str(p)+'_'
+        return filnm
+    def construct_filename(self,sepvarlist,paramgrp): 
+        filnm=self.common_filename()
+        if len(sepvarlist)==1:
+           paramgrp=[paramgrp]
+        filnm=filnm+'_'.join([sv+str(v) for sv,v in zip(sepvarlist,paramgrp)])
+        return filnm
         
-ARGS = "-outputdir ../pickle/ -sepvarlist sex region theta -plot_ctrl 000"      
+#ARGS = "-outputdir ../pickle/ -sepvarlist sex region theta -plot_ctrl 000"      
+
+exclude_name=['theta'] #use to exclude variable(s) from column name in _points files
         
 try:
  	commandline = ARGS.split() #in python: define space-separated ARGS string
@@ -203,10 +249,10 @@ if len(Grp_PS.outfnames):
     grp_utl.plot_groups(Grp_PS.avg_PS,Grp_PS.stderr_PS,Grp_PS.minutes,Grp_PS.samples,Grp_PS.filenm,Grp_PS.sepvarlist,Grp_PS.sepvardict,plot_cols)
     Grp_PS.write_traces() 
     Grp_PS.write_stat_data() 
-
+    Grp_PS.bar_graph_data(exclude_name)
 ##### After working, deal with continuous valued groups, e.g. age and light level
 ### update GrpAvgPSP
-  
+
 
               
                 
