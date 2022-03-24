@@ -1,4 +1,4 @@
-#Type something like this from within python: ARGS="20160822orangedm105 M 30 none 10.5 DM -1"
+#Type something like this from within python: ARGS="20160822orangedm105 M 30 none 10.5 DM"
 #template: ARGS="filename sex age drugs theta region"
 #then type:  
 #If not in python, type: python PopSpikeAnal.py 031011_5Or M 30 none 10.5 DM
@@ -19,7 +19,7 @@ two_hours=120 #make global
 sec_per_msec=0.001 #make global
 sec_per_min=60.0 #make global  
 
-
+ARGS="20201224greendm105g1 F 91 pptg1 0.0 DM -decay 2.5 -FVwidth 1.2"
 
 class PopSpike:
    
@@ -55,9 +55,7 @@ class PopSpike:
         filenamepattern=self.datadir+self.params.exper+self.filename_ending
         filename = glob.glob(filenamepattern)
         if (len(filename)==0):
-            print ("You mistyped the filenames. Python found no such files:")
-            pp(filename)           
-            #read in data file. This is specific to labview output
+            sys.exit("You mistyped the filenames. Python found no labview file with that name:")
         self.Vm_traces,self.tracetime,self.dt,self.time=psu.read_labview(filename[0])  
         self.tracesPerMinute=int(np.round(sec_per_min/(self.tracetime[-1]-self.tracetime[-2])))
         self.pretraces=self.tracesPerMinute*self.baseline_minutes
@@ -227,7 +225,7 @@ class PopSpike:
         axes.legend(fontsize=8, loc='best')           
         return 
     
-    def plotGoodTraces(self,traces=False): #specify tuple of 1st and last trace you want to plot
+    def plotGoodTraces(self,traces=None): #specify tuple of 1st and last trace you want to plot
         traces_per_panel = 40
         peak_decay = 0.016
         spread = 0.1
@@ -387,7 +385,7 @@ if __name__=='__main__':
     pop_spike.normalizeAmp()
     pop_spike.summaryMeasure()
     pop_spike.showSummaryPlot()
-    pop_spike.saveData()
+    #pop_spike.saveData()
 
 #####
 #to plot subset of traces:
