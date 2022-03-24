@@ -13,17 +13,20 @@ def parse_args(commandline,do_exit,flag):
     region=['region','--region']
     parser.add_argument(exp[flag], type=str, help = 'give exp name, for example: 031011_5Or')
     parser.add_argument('--no-graphs', '-g', dest='graphs', default=True, action='store_false') # -g optional and not position-defined (its absence OK too)
-    parser.add_argument(sex[flag], type=str, choices=["M","F", "Fe"],help="male M or female F or Fe")
+    parser.add_argument(sex[flag], type=str, choices=["M","F", "Fe","Fx"],help="male M or female F or Fe")
     parser.add_argument(age[flag], type=int, help="animal age in days")
     parser.add_argument(drug[flag], type=str, help="what drugs were in the ACFS")
     parser.add_argument(theta[flag], type=float, help="theta frequency (e.g. 5, 8, 10.5), enter 0 for no stim ctrl")   
     parser.add_argument(region[flag], type=str, choices=["DM", "DL"],help="dorsomedial: DM or dorsolateral: DL")
     
     # parser.add_argument('-sample_times', '--list', default = [30,60,90,100], action='append', help = "Enter to modify sample_times (default = [30,60,90,100]),", required = True) 
+    #to plot PopSpike vs time for each experiment in a group, make 2nd number 1
+	#to plot  correlation between LTP (at summarytime) and age or baseline epsp, make 3rd number 1
+    #to plot a single column, make 1st number 1
     parser.add_argument('-plot_ctrl',type=str,default='000') 
-    parser.add_argument("-samp_time", nargs="+",default=[30,60,90,100],)   
+    parser.add_argument("-samp_time", nargs="+",default=[30,60,90,120],)   
     parser.add_argument("-sepvarlist", nargs="+",default=['sex','region'],help='list of separation variables for grouping data')
-    parser.add_argument('-decay', type = float,  default =1.7, help="artifact decay time (default: 1.7 msec)")
+    parser.add_argument('-decay', type = float,  default =1.1, help="artifact decay time (default: 1.7 msec)")
     parser.add_argument('-artthresh',  type = float, default = 1.5, help="artifact threshold (default: 1.5 mV")
     parser.add_argument('-FVwidth',  type = float, default = 1, help="Fiber volley width (default: 1 msec")
     parser.add_argument('-samp_win',  type = int, default =5, help="Average over this many minutes for time samples (default: 5)")
@@ -33,8 +36,10 @@ def parse_args(commandline,do_exit,flag):
     parser.add_argument('-base_min', type = int, default = 15, help="number of minutes for stable baseline (default: 15)")
     parser.add_argument('-noisethres', type = float, default = 1.5, help="Noise threshold (default: 1.5)")
     parser.add_argument('-slope_std', type = int, default = 2, help="Enter to modify slope_std_factor (default: 2)")
-    parser.add_argument('-datadir',type = str, default = ".\\",   help="Directory containing raw data")
-    parser.add_argument('-outputdir',  type = str, default = ".\\", help="Directory for pickle files")
+    parser.add_argument('-datadir',type = str, default = "G:\\FIELDS\\ValerieData\\",   help="Directory containing raw data")
+    parser.add_argument('-outputdir',  type = str, default = "C:\\Users\\vlewitus\\Documents\\Python_Scripts\\Pickle_new_baseline\\", help="Directory for pickle files")
+    parser.add_argument('-baselinestart',  type = float, help="time of baseline start in minutes since exper start")
+    parser.add_argument('-criticaltimes', type = float, nargs="+", help="time of drug start or changing stimulation current to compensate drug effect")
     if flag:
         parser.add_argument('--maxage', type=int, help="maximum age of animals")
 
