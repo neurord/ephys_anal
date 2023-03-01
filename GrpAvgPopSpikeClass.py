@@ -24,8 +24,8 @@ class GrpPopSpike:
         self.slope_std_factor=params.slope_std 
         self.sepvarlist= params.sepvarlist
         #additional parameters.  consider making commandline parameters
-        self.minimum_sweeps=45     
-        self.slope_threshold=0.01  
+        self.minimum_sweeps=45
+        self.slope_threshold=0.01
         self.nan_threshold=20 
         self.baseline_min=0.4
         self.baseline_max=2
@@ -34,10 +34,6 @@ class GrpPopSpike:
         self.print_info=1
         self.colors=pyplot.get_cmap('viridis')
         self.color_incr=32
-        self.pattern = self.subdir+'20*.pickle'
-        self.outfnames = sorted(glob.glob(self.pattern))
-        if not len(self.outfnames):
-            sys.exit('************ No files found *********')
         self.BAD = []
        
     def read_data(self): 
@@ -47,27 +43,31 @@ class GrpPopSpike:
         for outfname in self.outfnames:
             with open(outfname, 'rb') as f:
                 datadict = pickle.load(f)
-            if self.print_info:
+            if self.print_info and 'slope' in datadict['trace'].keys():
                 print ("file read:", datadict['parameters'],", baseline slope=", round(datadict['trace']['slope'],6))
             exper_param = datadict['parameters']
             numnan=sum(np.isnan(datadict['trace']['popspikenorm']))
             ############ Select subset of files based on user specified criteria ##########
+            drug_parts=exper_param.drug.split('_')
+            drug_name=drug_parts[0]
+            if len(drug_parts)>1:
+                drug_conc=drug_parts[1]
             ignore1 = ((self.params.sex and self.params.sex != exper_param.sex) or 
                           (self.params.age is not None and self.params.age >= exper_param.age) or
                           (self.params.maxage is not None and self.params.maxage <= exper_param.age) or
-                          (self.params.drug and self.params.drug != exper_param.drug) or
+                          (self.params.drug and self.params.drug != drug_name) or
                           (self.params.region and self.params.region != exper_param.region) or
                           (self.params.theta and self.params.theta != exper_param.theta))
             ########## identify experiments that do not meet includsion criteria ##########
             exclude = ((len(datadict['trace']['popspikenorm'])<self.minimum_sweeps) or
                           (np.abs(datadict['trace']['slope'])>self.slope_threshold) or
-                          #-self.slope_std_factor*datadict['trace']['slope_std']
+                          (np.abs(datadict['trace']['slope'])-self.slope_std_factor*datadict['trace']['slope_std']>0) or
                           numnan>self.nan_threshold or #do not use trace if too many missing popspikes
 						  datadict['trace']['PS_mean'][0]<self.baseline_min)
             if exclude and not ignore1:
                 if len(datadict['trace']['popspikenorm'])<self.minimum_sweeps:
                     print ("!!!NOT ENOUGH goodtraces", datadict['parameters'].exper, len(datadict['trace']['popspikenorm']))
-                elif np.abs(datadict['trace']['slope'])>self.slope_threshold:
+                elif np.abs(datadict['trace']['slope'])>self.slope_threshold or (np.abs(datadict['trace']['slope'])-self.slope_std_factor*datadict['trace']['slope_std']>0):
                     print ("!!!BAD baseline", datadict['parameters'].exper,  "slope u,s", round(datadict['trace']['slope'],6),round(datadict['trace']['slope_std'],6))
                 elif datadict['trace']['PS_mean'][0]<self.baseline_min:
                     print ("!!!PSP amp too low", datadict['trace']['PS_mean'][0])
@@ -89,14 +89,47 @@ class GrpPopSpike:
                 if datadict['trace']['popspikenorm'][-1]==0.0: #last popspike is 0, why????
                     print ("@@@@@@@@@ check popSpikeAnal for", exper_param.exper, datadict['anal_params'])
                 DATAS.append(datadict['trace'])
-                PARAMS = PARAMS.append(vars(datadict['parameters']), ignore_index = True)
+                params=vars(datadict['parameters'])
+                params['slope_std_factor']=params['slope_std']
+                del params['slope_std']
+                params['date']=params['exper'][0:8]
+                PARAMS = PARAMS.append(params, ignore_index = True)
                 ANAL=ANAL.append(datadict['anal_params'],ignore_index=True)
         
         df2 = pd.DataFrame(DATAS, dtype=float)
         self.whole_df=pd.concat([PARAMS,ANAL, df2], axis = 1)
+        #### combine experiments if same conditions collected from same mouse
+        print('####################################### ') 
+        avg_col=['popspikeminutes','popspikenorm','PS_mean','FV_means','FVnorm','FVsize','peaktime','slope_std','slope']
+        grp_params=['date','region','theta','sex','drug','age']
+        params=	grp_params+['exper','criticaltimes']#vars(datadict['parameters']).keys()
+        grp_data=self.whole_df.groupby(grp_params)
+        all_new_data=[];drop_indices=[]
+        for grp in grp_data.groups.keys():
+             if grp_data.get_group(grp).age.count()>1:
+                  new_data={}
+                  drop_indices.append(grp_data.get_group(grp).index)
+                  for ky in avg_col:
+                     sizes=[self.whole_df[ky].iloc[x].size for x in drop_indices[-1]]
+                     size_std=np.std(sizes)
+                     if  size_std==0:
+                          new_data[ky]=grp_data.get_group(grp)[ky].mean() #replace with nanmean somehow?
+                     else:
+                          new_data[ky],_,_=grp_utl.exp_avg(grp_data.get_group(grp)[ky]) #replace with nanmean somehow?
+                  for ky in params:
+                      new_data[ky]=grp_data.get_group(grp)[ky].values[0]
+                  all_new_data.append(new_data) 
+        #print('before dropping,', drop_indices, 'whole_df length=',len(self.whole_df),"\n",self.whole_df.exper)	  
+        for ind in [dp for dpset in drop_indices for dp in dpset]:
+            self.whole_df=self.whole_df.drop(ind) 
+            print('drop_index',ind,'new df length',len(self.whole_df))
+        for new_data in all_new_data:
+            self.whole_df = self.whole_df.append(new_data, ignore_index = True)
         print (len(self.whole_df),'experiments met criteria.')
     
-    def group_data(self, sepvarlist): 
+    def group_data(self, sepvarlist, newcolumnname=None): 
+        if newcolumnname is not None:
+            self.whole_df[newcolumnname]=self.whole_df.apply(lambda row: row.drug.split('_')[0],axis=1)
         self.grp_data = self.whole_df.groupby(sepvarlist)
         self.avg_PS={}
         self.stderr_PS={}
@@ -156,8 +189,8 @@ class GrpPopSpike:
         axes[1].legend(fontsize=8, loc='best')
         fig.canvas.draw()
 
-    def write_stat_data(self):
-        params = ['exper', 'sex', 'age', 'region', 'theta', 'drug']
+    def write_stat_data(self, newcolumnname):
+        params = ['exper', 'sex', 'age', 'region', 'theta', 'drug', newcolumnname]
         SASoutput = self.whole_df[params] #in to a 2d array you write it into SASoutput. 
         SASheader= ' '.join(params)
         sample_times=[30,60] ####### FIXME: hard coded sample times
@@ -226,33 +259,40 @@ class GrpPopSpike:
         
 #ARGS = "-outputdir ../pickle/ -sepvarlist sex region theta -plot_ctrl 000"      
 
-exclude_name=['theta'] #use to exclude variable(s) from column name in _points files
-        
-try:
- 	commandline = ARGS.split() #in python: define space-separated ARGS string
- 	do_exit = False
-except NameError: #if you are not in python, read in filename and other parameters
- 	commandline = sys.argv[1:]
- 	do_exit = True
-
-params=psu.parse_args(commandline,do_exit,1)
-print(params, commandline)            
-Grp_PS=GrpPopSpike(params)
-if len(Grp_PS.outfnames):
-    Grp_PS.read_data()
-    Grp_PS.plot_bad()
-    Grp_PS.group_data(Grp_PS.sepvarlist) 
-    if int(params.plot_ctrl[0])>0:
-        plot_cols=int(params.plot_ctrl[0])
-    else:
-        plot_cols=None
-    grp_utl.plot_groups(Grp_PS.avg_PS,Grp_PS.stderr_PS,Grp_PS.minutes,Grp_PS.samples,Grp_PS.filenm,Grp_PS.sepvarlist,Grp_PS.sepvardict,plot_cols)
-    Grp_PS.write_traces() 
-    Grp_PS.write_stat_data() 
-    Grp_PS.bar_graph_data(exclude_name)
-##### After working, deal with continuous valued groups, e.g. age and light level
-### update GrpAvgPSP
-
+if __name__ =='__main__':        
+	exclude_name=['theta'] #use to exclude variable(s) from column name in _points files
+	        
+	try:
+	 	commandline = ARGS.split() #in python: define space-separated ARGS string
+	 	do_exit = False
+	except NameError: #if you are not in python, read in filename and other parameters
+	 	commandline = sys.argv[1:]
+	 	do_exit = True
+	
+	params=psu.parse_args(commandline,do_exit,1)
+	#print('params=',params,'commandline =',commandline)            
+	Grp_PS=GrpPopSpike(params)
+	Grp_PS.pattern = Grp_PS.subdir+'*.pickle'
+	Grp_PS.outfnames = sorted(glob.glob(Grp_PS.pattern))
+	Grp_PS.outfnames = [f for f in Grp_PS.outfnames if not f.endswith('IO.pickle')]
+	if not len(Grp_PS.outfnames):
+	    sys.exit('************ No files found *********')
+	if len(Grp_PS.outfnames):
+	    Grp_PS.read_data()
+	    Grp_PS.plot_bad()
+	    newcolumnname='drug_combined'
+	    Grp_PS.group_data(Grp_PS.sepvarlist,newcolumnname) 
+	    if int(params.plot_ctrl[0])>0:
+	        plot_cols=int(params.plot_ctrl[0])
+	    else:
+	        plot_cols=None
+	    grp_utl.plot_groups(Grp_PS.avg_PS,Grp_PS.stderr_PS,Grp_PS.minutes,Grp_PS.samples,Grp_PS.filenm,Grp_PS.sepvarlist,Grp_PS.sepvardict,plot_cols)
+	    Grp_PS.write_traces() 
+	    Grp_PS.write_stat_data(newcolumnname) 
+	    Grp_PS.bar_graph_data(exclude_name)
+	##### After working, deal with continuous valued groups, e.g. age and light level
+	### update GrpAvgPSP
+	
 
               
                 
