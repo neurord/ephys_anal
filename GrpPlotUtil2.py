@@ -8,7 +8,7 @@ import pop_spike_utilities as psu
 def exp_avg(datas, datatype=None,somethreshold=999e6):
     if not datatype:
         alldatavalues=datas
-        #print "exp_avg: datatype=none, single array passed"
+        #print("exp_avg: datatype=none, single array passed")
     else:
         alldatavalues = [celldata[datatype] for celldata in datas]
     ln = max(len(celldatavalues) for celldatavalues in alldatavalues)
@@ -71,9 +71,9 @@ def plot_groups(avg_grp,stderr_grp,minutes_grp,count,filenm,sepvarlist,sepvardic
             row=entry1.index(grp[0])
             col=entry2.index(grp[1])
             axnum=row*numcols+col
-        axes[axnum].errorbar(minutes_grp[grp],avg_grp[grp],stderr_grp[grp],label=filenm[grp]+',n='+str(count[grp][0]))
+        axes[axnum].errorbar(minutes_grp[grp],avg_grp[grp],stderr_grp[grp],label=filenm[grp]+',n='+str(np.max(count[grp])))
         axes[axnum].legend(fontsize=10, loc='best')
-    return 
+    return fig
 
 def opto_filename(sepvarlist,paramgrp,llval):
     filnm=''

@@ -5,6 +5,7 @@
 import os;
 import numpy as np
 from matplotlib import pyplot
+pyplot.ion()
 import sys
 from pprint import pprint as pp
 import glob

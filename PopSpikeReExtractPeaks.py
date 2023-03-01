@@ -19,57 +19,62 @@ def find_files(subdir):
 		sys.exit('************ No files found *********')
 	return outfnames
 	
+def get_params(f,outfname,do_exit): #make datadir optional param?
+    #1. open pickle file
+    datadict = pickle.load(f)
+    #2. extract experimental parameters 
+    params = datadict['parameters']
+
+    #3. re-create commandline and re-parse args
+    exper=params.exper
+    region=params.region
+    sex=params.sex
+    drug=params.drug
+    age=params.age
+    theta=params.theta
+    commandline=[exper,sex,str(age),drug,str(theta),region]
+    params=psu.parse_args(commandline,do_exit,0)
+    param_dict = vars(params)
+
+    #4. extract analysis parameters, store all needed parameters in param_dict
+    if os.stat(outfname).st_mtime < time.mktime(changedate.timetuple()):
+        #if above fails, use os.path.basename(exper[0:8])
+        param_dict['decay']=datadict['anal_params']['artdecay']
+        param_dict['FVwidth']=datadict['anal_params']['FVwidth']
+        print('1st peak end fraction =',datadict['anal_params']['1st_peak_end'])
+    elif exper=='20180312orange1':
+        param_dict['decay']=datadict['anal_params']['artdecay']/ms_per_sec
+        param_dict['FVwidth']=datadict['anal_params']['FVwidth']/ms_per_sec
+        param_dict['first_peak_end_frac']=0.625
+    else:
+        param_dict['decay']=datadict['anal_params']['artdecay']*ms_per_sec
+        param_dict['FVwidth']=datadict['anal_params']['FVwidth']*ms_per_sec
+    if datadict['anal_params']['1st_peak_end']<0.5: #this number is arbitrary. maybe use 0.625?
+        param_dict['first_peak_end_frac']=0.625
+    else:
+        param_dict['first_peak_end_frac']=datadict['anal_params']['1st_peak_end']
+    param_dict['base_min']=datadict['anal_params']['baseline_min']
+    param_dict['noisethres']=datadict['anal_params']['noisethresh']
+    param_dict['artthresh']=datadict['anal_params']['artifactthresh']
+    param_dict['art_win']=datadict['anal_params']['artifact_wind']
+    param_dict['induction_gap_time']=datadict['anal_params']['induction_gap']
+    param_dict['baselinepoints']=datadict['anal_params']['baselinepts']
+    return param_dict,datadict['trace']
+
 def analyze_files(fnames,new_outdir,do_exit):
 	#loop over all analyzed exepriments
 	slopechange=[]
 	expererrors=[]
 	for outfname in fnames:
 		with open(outfname, 'rb') as f:
-			#open pickle file
-			datadict = pickle.load(f)
-			old_slope=round(datadict['trace']['slope'],4)
-			old_slope_std=round(datadict['trace']['slope_std'],4)
-			#2. extract experimental parameters 
-			params = datadict['parameters']
+			param_dict,trace_dict=get_params(f,outfname,do_exit) ##open pickle file, get parameters
 
-			#re-create commandline and re-parse args
-			exper=params.exper
-			region=params.region
-			sex=params.sex
-			drug=params.drug
-			age=params.age
-			theta=params.theta
-			commandline=[exper,sex,str(age),drug,str(theta),region]
-			params=psu.parse_args(commandline,do_exit,0)
-			print(params.datadir,glob.glob(params.datadir+params.exper+'*'),params.exper)
-			param_dict = vars(params)
+			old_slope=round(trace_dict['slope'],4)
+			old_slope_std=round(trace_dict['slope_std'],4)
 
 			#3. extract analysis parameters, store all needed parameters in params
-			#if (int(exper[0:8])<20210512) and (exper!='20160801green') and (exper[0:17]!='20160822orangedm1') and (exper!='20161121orange') and (exper!='20170119greendl5') and (exper!='20170120greendm5') and (exper!='20170324greendm105dmso') and (exper!='20170324greendmctrlnitr') and (exper!='20170324orangedmctrldmso') and (exper!='20170329greendm105nitr') and (exper!='20170329greendmctrldmso') and (exper!='20170329orangedm105dmso') and (exper!='20170405greendlctrlsch23390') and (exper!='20180315greendl105') and (exper!='20180612greendm5') and (exper!='20180916orangedm105') and (exper!='20181005orangedm5') and (exper!='20181117greendl5') and (exper!='20190104greendl5') and (exper!='20190110orangedm105') and (exper!='20190223greendm5') and (exper!='20190224orangedl105') and (exper!='20191211orangedm105mpp') and (exper!='20200113greendl5cycl') and (exper!='20200705orangedl5') and (exper[0:8]!='20200707') and (exper!='20200714greendm105') and (exper!='20201031orangedl5') and (exper!='20201220orangedmctrlg1') and (exper!='20201226orangedm105ppt'): #format of parameters changed on this date
-			if os.stat(outfname).st_mtime < time.mktime(changedate.timetuple()):
-				#if above fails, use os.path.basename(exper[0:8])
-				param_dict['decay']=datadict['anal_params']['artdecay']
-				param_dict['FVwidth']=datadict['anal_params']['FVwidth']
-				print('1st peak end fraction =',datadict['anal_params']['1st_peak_end'])
-			elif exper=='20180312orange1':
-				param_dict['decay']=datadict['anal_params']['artdecay']/ms_per_sec
-				param_dict['FVwidth']=datadict['anal_params']['FVwidth']/ms_per_sec
-				param_dict['first_peak_end_frac']=0.625
-			else:
-				param_dict['decay']=datadict['anal_params']['artdecay']*ms_per_sec
-				param_dict['FVwidth']=datadict['anal_params']['FVwidth']*ms_per_sec
-			if datadict['anal_params']['1st_peak_end']<0.5: #this number is arbitrary. maybe use 0.625?
-				param_dict['first_peak_end_frac']=0.625
-			else:
-				param_dict['first_peak_end_frac']=datadict['anal_params']['1st_peak_end']
-			param_dict['base_min']=datadict['anal_params']['baseline_min']
-			param_dict['noisethres']=datadict['anal_params']['noisethresh']
-			param_dict['artthresh']=datadict['anal_params']['artifactthresh']
-			param_dict['art_win']=datadict['anal_params']['artifact_wind']
-			param_dict['induction_gap_time']=datadict['anal_params']['induction_gap']
-			param_dict['baselinepoints']=datadict['anal_params']['baselinepts']
-
 			params = Namespace(**param_dict)
+			print(params.datadir,glob.glob(params.datadir+params.exper+'*'),params.exper)
 			print('re-analyzing experiment:', params.exper)
 			#
 			#4. call PopSpikeAnalClass with the parameters, but do not generate plots
@@ -108,28 +113,29 @@ def writefile(variables,datatoprint,filename):
 	f.close()
 	return
 
-ARGS='C:\\Users\\vlewitus\\Documents\\Python_Scripts\\Pickle\\ C:\\Users\\vlewitus\\Documents\\Python_Scripts\\Pickle_new_baseline\\'			
 if __name__=='__main__':
-    try:
-        commandline = ARGS.split() # ARGS="pickle_dir new_outputdir "
-        do_exit = False
-    except NameError: 
-        commandline = sys.argv[1:]
-        do_exit = True    
+	ARGS='C:\\Users\\vlewitus\\Documents\\Python_Scripts\\Pickle\\ C:\\Users\\vlewitus\\Documents\\Python_Scripts\\Pickle_new_baseline\\'			
+	if __name__=='__main__':
+		try:
+			commandline = ARGS.split() # ARGS="pickle_dir new_outputdir "
+			do_exit = False
+		except NameError: 
+			commandline = sys.argv[1:]
+			do_exit = True    
 
-pickledir=commandline[0]
-new_outdir=commandline[1]
-pickle_files=find_files(pickledir)
-expererrors,slopechange=analyze_files(pickle_files,new_outdir,do_exit)
+	pickledir=commandline[0]
+	new_outdir=commandline[1]
+	pickle_files=find_files(pickledir)
+	expererrors,slopechange=analyze_files(pickle_files,new_outdir,do_exit)
 
-######### Write text file of experiments that have significant slope changes ####
-if len(slopechange):
-	print(slopechange)
-	variables=['exper','old slope','new slope','sex','age','drug','theta','region','decay','artthresh','FVwidth','first_peak_end_frac','base_min','noisethres']
-	writefile(variables,slopechange,'slopechange.txt')
-else:
-	print('NO MAJOR SLOPE CHANGE')
-######### Write text file of experiments that have many errors ####
-if len(expererrors):
-	variables=['exper','error_number','sex','age','drug','theta','region','decay','artthresh','FVwidth','first_peak_end_frac','base_min','noisethres']
-	writefile(variables,expererrors,'expererrors.txt')
+	######### Write text file of experiments that have significant slope changes ####
+	if len(slopechange):
+		print(slopechange)
+		variables=['exper','old slope','new slope','sex','age','drug','theta','region','decay','artthresh','FVwidth','first_peak_end_frac','base_min','noisethres']
+		writefile(variables,slopechange,'slopechange.txt')
+	else:
+		print('NO MAJOR SLOPE CHANGE')
+	######### Write text file of experiments that have many errors ####
+	if len(expererrors):
+		variables=['exper','error_number','sex','age','drug','theta','region','decay','artthresh','FVwidth','first_peak_end_frac','base_min','noisethres']
+		writefile(variables,expererrors,'expererrors.txt')
