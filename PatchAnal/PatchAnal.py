@@ -635,4 +635,4 @@ if __name__=='__main__':
 
     ########## NEXT STEPS: ################
     #### 1. IO analysis
-    #### 2. determine time of digital stimulation, replace -PSPstart
+    #### 2. optional graphs of the induction traces
