@@ -49,8 +49,7 @@ def IVIF_plot(exp): #plot traces, for visual inspection / verify analysis
             colinc=(len(colors.colors)-1)/(num_traces-1) #IF and IV have different numbers of traces
             for num in range(num_traces):  #num indexes arrays - resets to zero for each routine
                 trace=exp.data['Data'][r].__array__()[:,num]*MV_PER_V 
-                dt=exp.get_dt(exp.IV_IF_dict[r]) #FIXME - delete this, fix next line
-                time = np.arange(0,len(exp.data['Data'][r].__array__()))*dt# exp.IV_dt[r] #time array needed for trace plot
+                time = np.arange(0,len(exp.data['Data'][r].__array__()))*exp.IV_dt[r] #time array needed for trace plot
                 mycolor=colors.colors[int(num*colinc*partial_scale)]
                 axes[i].plot(time,trace,label=str(num),color=mycolor)
                 axes[i].set_ylabel(ylbl)
@@ -70,3 +69,78 @@ def summary_plot(exp):
     axes.legend()
     fig.show()
 
+def induction_plot(exp,stim_time=[]): #plot traces, for visual inspection / verify analysis
+    from scipy.signal import find_peaks
+    colors=pyplot.get_cmap('plasma')
+    partial_scale=0.9 #avoid the very light 
+    offset=2 #in mV, to visualize multiple traces
+    n=len(exp.spikes.keys())
+    factors=list([i, n//i] for i in range(1, int(n**0.5) + 1) if n % i == 0)
+    index=np.argmin([abs(f[0]-f[1]) for f in factors])
+    cols,rows=factors[index]
+    fig,axes=pyplot.subplots(rows,cols)
+    axes=fig.axes
+    fig.canvas.manager.set_window_title('induction '+exp.params['exper'])
+    for i,r in enumerate(exp.spikes.keys()):
+        colinc=(len(colors.colors)-1)/(np.shape(exp.data['Data'][r].__array__())[-1]-1)
+        for num in range(np.shape(exp.data['Data'][r].__array__())[-1]):  #num indexes arrays 
+            trace=exp.data['Data'][r].__array__()[:,num]*MV_PER_V 
+            time = np.arange(0,len(exp.data['Data'][r].__array__()))*exp.induct_dt #time array needed for trace plot FIXME: wrong dt
+            labl=str(num)
+            color_index=int(num*colinc*partial_scale)
+            mycolor=colors.colors[color_index]
+            axes[i].plot(time,trace+num*offset,label=labl,color=mycolor)
+            ###### label the stim artifacts  and stim time
+            stim_pts=[int(st/exp.induct_dt) for st in stim_time]
+            yval=(exp.data['Data'][r].__array__()[stim_pts,num])*MV_PER_V +num*offset
+            xval=time[stim_pts]
+            axes[i].plot(xval,yval, 'ko')
+            artifact=find_peaks(trace,height=50)[0]
+            yval=trace[artifact]+num*offset
+            xval=time[artifact]
+            axes[i].plot(xval,yval,'g*')
+            #label the action potentials
+            if num in exp.spikes[r].keys():
+                yval=exp.spikes[r][num].APpeak*MV_PER_V +num*offset
+                xval=exp.spikes[r][num].APtime
+                axes[i].plot(xval,yval,'P', color='gray')
+        axes[i].set_xlabel('Time (s)')
+        axes[i].set_ylabel(r.split('_')[0]+' '+'Vm (mV)')
+    axes[0].legend()
+    axes[0].set_title('o=~stim time, *=artifact, +=spike')
+    fig2,axes=pyplot.subplots()
+    for i,r in enumerate(exp.num_spikes.keys()):
+        color_index=int(i*colinc*partial_scale)
+        mycolor=colors.colors[color_index]
+        index=list(exp.num_spikes[r].keys())
+        values=list(exp.num_spikes[r].values())
+        axes.scatter(index,values,label=r.split('_')[0],s=(20-2*i)**2,color=mycolor)
+    axes.legend()
+    axes.set_xlabel('burst number')
+    axes.set_ylabel('num spikes')
+    fig3,axes=pyplot.subplots()
+    for i,r in enumerate(exp.spikes.keys()):
+        color_index=int(i*colinc*partial_scale)
+        mycolor=colors.colors[color_index]
+        index=list(exp.spikes[r].keys())
+        values=[x.APtime[0] for x in exp.spikes[r].values()]
+        axes.scatter(index,values,label=r.split('_')[0],s=(20-2*i)**2,color=mycolor)
+    axes.legend()
+    axes.set_xlabel('burst number')
+    axes.set_ylabel('2nd spike time (s)')
+
+def IO_plot(exp):
+    fig,axes=pyplot.subplots()
+    fig.canvas.manager.set_window_title('IO curve '+exp.params['exper'])
+    for h,color in zip(exp.IOamp.keys(),['b','r']):
+        if len(exp.IOamp[h])==len(exp.IOrange):
+            xvals=exp.IOrange
+            xlbl='current'
+        else:
+            xvals=np.arange(len(exp.IOamp[h]))
+            xlbl='index'
+        axes.plot(xvals,exp.IOamp[h],color=color,marker='.',linestyle='None',label=h)
+        axes.set_xlabel(xlbl)
+        axes.set_ylabel ('PSP amplitude ')
+    axes.legend()
+    fig.show()
