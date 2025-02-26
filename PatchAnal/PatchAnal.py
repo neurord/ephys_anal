@@ -13,10 +13,9 @@ HV_VAL_KEY={v:k for k,v in HEADSTAGE_V.items()}
 HEADSTAGE_I={'H1':'_S1_', 'H2':'_S3_'}
 CURRENT_THRESH=5e-12 #detect current injection with 5 picoAmp change in channels S1 or S3
 SEC_PER_MSEC=0.001 #global
-capacitive_artifact_points=2
+capacitive_artifact_points=2 
 MEASURES=['Timer_Time','Seg_start_time'] #code assumes that Seg_start_time indicates time of digital stimulation
 stim_per_burst=4 #FIXME: for theta burst - different value for LTD - add to ArgParser
-INDUCTION_NAME='ThetaBurst' #FIXME - add to ArgParser? 
 
 class PatchAnal():
     def __init__(self,params): #change to PopSpike(args)
@@ -32,8 +31,8 @@ class PatchAnal():
         self.graphs=params.graphs
         self.plotstart=params.plotstart 
         self.slope_std_factor=params.slope_std
-        self.hyper_dur=params.hyper_dur
-        self.PSPstart=params.PSPstart #FIXME: extract from data file.  Or, make this the time for decay of artifact
+        self.ss_dur=params.ss_dur
+        self.PSPstart=params.PSPstart #Extracted from notebook file if one exists
         self.basestart=params.basestart
         self.base_dur=params.base_dur
         self.window=params.window #filter window for finding peak PSP
@@ -47,7 +46,8 @@ class PatchAnal():
         self.IOrange=params.IOrange
         self.digstim=params.digstim 
         self.Stim_interval=params.PSP_interval
-        self.artifact_decay=params.decay
+        self.artifact_decay=params.decay #time for decay of stimulation artifact
+        self.induction=params.induction
         if len(params.headstages)==len(params.celltype): 
             self.celltype={h:params.celltype[i] for i,h in enumerate(self.headstages)}
         else:
@@ -55,7 +55,7 @@ class PatchAnal():
             exit()
         self.params={'exper':self.experiment,'region':self.region, 'genotype':self.genotype, 'age':self.age, 'drug':self.drug, 'ID':self.ID, 'celltype': self.celltype}
         self.anal_params={
-                     'PSPstart':self.PSPstart, 'basestart': self.basestart, 'base_dur':self.base_dur, 'hyper_dur': self.hyper_dur, 
+                     'PSPstart':self.PSPstart, 'basestart': self.basestart, 'base_dur':self.base_dur, 'ss_dur': self.ss_dur, 
                      'window': self.window, 'IOrange':self.IOrange,'digstim':self.digstim, 'threshval': self.threshval,
                      'APthresh':self.APthresh,'refract':self.refract,'max_risetime':self.max_risetime,'min_risetime':self.min_risetime}
 
@@ -73,7 +73,7 @@ class PatchAnal():
         self.routines=list(self.data['Data'].keys())
         psp_list=[r for r in self.routines if r.endswith('Synaptic_StimDigCC')]
         #Determine which routines are pre theta and which are post-theta
-        self.induction_list=[r for r in self.routines if INDUCTION_NAME in r] #FIXME: won't work for 20 Hz
+        self.induction_list=[r for r in self.routines if self.induction in r] 
         if len(self.induction_list):
             first_burst=self.induction_list[0]
             self.induct_headstage='H'+str(int(first_burst[-1])) #identify which headstage had depol during theta
@@ -153,7 +153,7 @@ class PatchAnal():
                 if line.startswith('Series'): #series name
                     series=line.split(': ')[-1][0:-1]
                     self.series_start[series]=[i+1] #starting line number for series/routine name
-                    if INDUCTION_NAME in series: 
+                    if self.induction in series: 
                         self.theta_in_notebook=True
                 elif line=='\n': #end of series/routine, except for last series. Requires that these lines are encountered AFTER Series
                     self.series_start[series].append(i) 
@@ -194,7 +194,7 @@ class PatchAnal():
                             PSPstart_dict[series]=self.PSPstart  #if not found (PSPstart=[]) then use default value
                         elif len(PSPstart)==1:
                             PSPstart_dict[series]=PSPstart[0] + self.artifact_decay #save single value
-                        else:
+                        else:  
                             PSPstart_dict[series]=[x+self.artifact_decay for x in PSPstart] #list
 
                 self.routine_time[series]=self.sweep_time[series][0] #time of routine start is ~Timer_Time of 1st sweep
@@ -268,12 +268,13 @@ class PatchAnal():
             self.params[info[0]]=info[1]
 
     def init_arrays(self): #NOTE: separate out self.Vm_psp, and store traces, if need to read data from exported ibw
-        self.Vm_psp={}; self.Vm_IV_IF={}
+        self.Vm_psp={}; self.Vm_IV_IF={}; self.IO_psp={}
         self.num_traces={}
         self.IV_IF_spikes={}
         self.induction_time=[]
         for headstage in self.headstages: ### initialize dictionary of arrays - one dict entry for each headstage
             self.Vm_psp[headstage]= {r:i for r,i in self.psp_dict.items() if HEADSTAGE_V[headstage] in r} #list of routines for psp extract, and number with dt
+            self.IO_psp[headstage]= {r:i for r,i in self.IO_dict.items() if HEADSTAGE_V[headstage] in r}
             for r in self.Vm_psp[headstage].keys():
                 print(r,np.shape(self.data['Data'][r].__array__()))
             self.num_traces[headstage]=sum([np.shape(self.data['Data'][r].__array__())[-1] for r in self.Vm_psp[headstage].keys()])
@@ -354,7 +355,7 @@ class PatchAnal():
             #The following is kluge.  Don't want to specify routine name (e.g. ThetaBurst), cuz don't know name of 20Hz or other possible induction protocols
             #So, instead exclude specific, non-induction protocols.  Will be problematic if someone adds a protocol
             #Could do something similar to MEASURES and define induction protocols at top
-            routine_times=[x for nam,x in self.routine_time.items() if INDUCTION_NAME in nam]
+            routine_times=[x for nam,x in self.routine_time.items() if self.induction in nam]
             if len(routine_times):
                 self.train_interval=np.mean(np.diff(routine_times))
                 self.params['induction']['train_interval']=self.train_interval
@@ -363,13 +364,15 @@ class PatchAnal():
                 print('******* Unable to determine train interval - fix "routine_times=" in "analyze_theta" !!!!!!!!!!!!!!!!')
             return #not needed
 
-        def ISI_anal(peak_times, routine_name):
+        def ISI_anal(AP_times, routine_name):
             #if there is no burst frequency, just use time of single stim
+            adjust=self.min_risetime-self.artifact_decay #artifact decay is too long for labeling stim time, to show it occurs prior to AP
             if len(self.PSPstart[routine_name])>1:
-                stim_time=np.array([self.PSPstart[routine_name][0]+i*np.mean(np.diff(self.PSPstart[routine_name])) for i in range(stim_per_burst)])
+                #FIXME: APs seem to occur immediately after stim, or sometimes ~4 ms later
+                stim_time=np.array([self.PSPstart[routine_name][0]+adjust+i*np.mean(np.diff(self.PSPstart[routine_name])) for i in range(stim_per_burst)])
             else:
                 stim_time=np.array(self.PSPstart[routine_name])
-            for pt in peak_times: #for each spike)
+            for pt in AP_times: #for each spike)
                 delta=pt-stim_time #positive delta means spiketime AFTER psp - forward pairing
                 minloc=np.abs(delta).argmin()
                 self.min_interval.append(delta[minloc])
@@ -378,7 +381,7 @@ class PatchAnal():
                         self.other_interval.append(delta[minloc+1]) #AP closest to previous stim. oher interval time from AP to next stim
                     else:
                         self.other_interval.append(delta[minloc-1]) #AP closest to next stim. other interval time from AP to previous stim
-            return #not needed
+            return stim_time
 
         self.num_spikes={r:{} for r in self.induct_dict.keys() if HEADSTAGE_V[self.induct_headstage] in r} #will create separate recarrays for spikes in each burst
         self.spikes={r:{} for r in self.num_spikes.keys()}
@@ -402,7 +405,8 @@ class PatchAnal():
             #find spikes in each sweep
             for num in range(np.shape(self.data['Data'][r].__array__())[-1]):
                 trace=self.data['Data'][r].__array__()[:,num]
-                peaks=find_peaks(trace[self.depol_startpt:self.depol_endpt],self.APthresh,distance=int(self.refract/self.induct_dt)) #AP are defined as crossing APthresh
+                #Refractary period after stim artifact is preventing finding some APs
+                peaks=find_peaks(trace[self.depol_startpt:self.depol_endpt],self.APthresh,width=10) #width in points, stim artifact interferes with spike detection if distance is used
                 if len(peaks[0]): #verify AP and not noise, extract spike time and risetime
                     num_peaks,peak_times=self.find_spikes(self.induct_headstage,r,num,trace[self.depol_startpt:self.depol_endpt],peaks[0],self.induct_dt,routine_type='induct')
                 else:
@@ -410,7 +414,7 @@ class PatchAnal():
                     peak_times=[]
                 self.num_spikes[r][num]=num_peaks #num spikes within burst
                 if len(peak_times):
-                    ISI_anal(peak_times,routine_name)
+                    stim_time=ISI_anal(peak_times,routine_name) #should be the same for each routine
         induct_params(routine_name)
         if self.theta_in_notebook:
             print('timer time available for induction')
@@ -420,7 +424,7 @@ class PatchAnal():
             print('timer time NOT available for induction, using time of induction - time of 1st paradigm')
             #subtract 
             self.params['time_to_induct']=self.induction_time[0] #induction_time uses clock time converted to seconds, and then time of 1st paradigm is subtracted already
-        #FIXME:add min_interval and other_interval to npz file - either the mean and std, or the arrays themselves
+        return stim_time
 
     #once time of dig-stim is known, calculate time between AP and dig-stim?
     #possibly calculate AP frequency within burst?
@@ -457,7 +461,7 @@ class PatchAnal():
             ahp_time=time[ahp_pt]-APtime
             self.IV_IF_spikes[h][r][s]=np.rec.fromarrays((APtime,riset,Vthresh,APpeak,APheight,width,ahp,ahp_time),names='APtime,risetime,Vthresh,APpeak,APheight,APwidth,AHP_amp,AHP_t')
         elif routine_type=='induct' and num_peaks: #only store peak value, peak time and risetime for theta protocol
-            self.spikes[r][s]=np.rec.fromarrays((APtime,riset,APpeak),names='APtime,risetime,APpeak')
+            self.spikes[r][s]=np.rec.fromarrays((APtime+self.depol_startpt*self.induct_dt,riset,APpeak),names='APtime,risetime,APpeak')
         elif num_peaks:
             print('!!!!!!!!!!!!!!!!! un-recognized routine type !!!!!!!!!!!!!!!!!!!!! ')
         else:
@@ -469,11 +473,11 @@ class PatchAnal():
             #two current injections during PSP.  Use the last one for access resistance
             Vtimepoints,factor=self.Itime_to_Vtime(timepoints,self.IV_dt[r],r)
             inject_endpt=Vtimepoints[1]-capacitive_artifact_points #make sure capacitive artifact excluded
-            inject_startpt=Vtimepoints[0]+factor  #make sure AFTER current onset 
-            ss_startpt=Vtimepoints[0]+4*int(self.hyper_dur/dt) #FIXME: duration to wait before measuring steadystate Vm, pass in dt.  4* is temp fix
+            inject_startpt=Vtimepoints[0]+factor  #make sure AFTER current onset. not used? 
+            ss_startpt=inject_endpt-int(self.ss_dur/dt) #duration for measuring steadystate Vm
             inject_start=inject_startpt*dt
             base_end=Vtimepoints[0]-capacitive_artifact_points #is this early enough?  
-            base_start=max(0,Vtimepoints[0]-int(self.hyper_dur/dt)) #FIXME: duration for measuring steadystate Vm
+            base_start=max(0,Vtimepoints[0]-int(self.basestart/dt)) 
             print('onset', Vtimepoints[0], round(inject_start,5),'s, offset',round(inject_endpt*dt,5))
             return inject_startpt,inject_endpt,base_start,base_end,ss_startpt
         
@@ -532,7 +536,7 @@ class PatchAnal():
             #above could be used to find time of inject during IV-IF curves - make independent function
             Vtimepoints,factor=self.Itime_to_Vtime(timepoints,dt,r)
             self.hyper_endpt=Vtimepoints[-1]-capacitive_artifact_points #make sure capacitive artifact excluded
-            self.hyperstartpt=Vtimepoints[-2]+int(self.hyper_dur/self.dt)
+            self.hyperstartpt=self.hyper_endpt-int(self.ss_dur/self.dt)
             self.hyperstart=self.hyperstartpt*self.dt
             self.Iaccess=inject[0]-np.mean(inject[timepoints[-2]:timepoints[-1]],axis=0) #use timepoints from current
             self.anal_params['hyperstart']=self.hyperstart
@@ -557,8 +561,8 @@ class PatchAnal():
                     self.PSPstartpt=int(self.PSPstart/self.dt) 
                 if self.PSPstartpt>np.shape(self.data['Data'][r].__array__())[0]:
                     print('********* PSP start time', self.PSPstart,' is after end of trace.  Make start time earlier ***********')
-                self.basestartpt=int(self.basestart/self.dt)  #FIXME: use time after hyper_endpt and before PSPstartpt?
-                self.base_endpt=int((self.basestart+self.base_dur)/self.dt)
+                self.basestartpt=self.PSPstartpt-int(self.basestart/self.dt)  #basestart is duration prior to event 
+                self.base_endpt=self.basestartpt+int(self.base_dur/self.dt)
                 for num in range(np.shape(self.data['Data'][r].__array__())[-1]):  #num indexes arrays - resets to zero for each routine
                     trace=self.data['Data'][r].__array__()[:,num]
                     peakpt=np.argmax(trace[self.PSPstartpt:])+self.PSPstartpt  #may want to filter prior to selecting peaktime - use self.window as filter param
@@ -574,6 +578,39 @@ class PatchAnal():
                     #### Potential Problem: use RMP from beginning of trace as RMP 1/5 sec later.
                     self.Raccess[headstage][trace_num]=(self.RMP[headstage][trace_num]-np.mean(trace[self.hyperstartpt:self.hyper_endpt]))/self.Iaccess[num]
                     trace_num+=1
+    
+    def IO_curve(self): #better to separate out colors and analysis, but would need to save more values
+        from matplotlib import pyplot as plt
+        plt.figure()
+        colors=plt.get_cmap('plasma')
+        partial_scale=0.9 #avoid the very light 
+        offset=.002 #in mV, to visualize multiple traces
+        self.IOamp={headstage:np.zeros(len(self.IOrange)) for headstage in self.headstages} #peak value of psp
+        for headstage in self.IO_psp.keys():  #intersection of headstages requested and those available
+            for r in self.IO_psp[headstage].keys():
+                dt=self.get_dt(self.IO_dict[r])
+                routine_start,routine_name=self.get_routine_start(r)
+                IOtraces=np.shape(self.data['Data'][r].__array__())[-1]
+                if len(self.IOrange) != IOtraces:
+                    print('IO range',len(self.IOrange), 'does not match number of IO traces',IOtraces)
+                    self.IOamp[headstage]=np.zeros(IOtraces)
+                colinc=(len(colors.colors)-1)/(IOtraces-1)
+                for num in range(IOtraces):  #num indexes arrays - resets to zero for each routine
+                    trace=self.data['Data'][r].__array__()[:,num]
+                    time=np.arange(len(trace))*dt
+                    color_index=int(num*colinc*partial_scale)
+                    mycolor=colors.colors[color_index]
+                    stim_start=int(self.PSPstart[routine_name]/dt) #arbitrary threshold
+                    peakpt=np.argmax(trace[stim_start:])+stim_start  #may want to filter prior to selecting peaktime - use self.window as filter param
+                    maxvm=np.mean(trace[peakpt-self.window:peakpt+self.window]) 
+                    basestartpt=stim_start-int(self.basestart/dt)  #basestart is duration prior to event 
+                    base_endpt=basestartpt+int(self.base_dur/dt)
+                    RMP=np.mean(trace[basestartpt:base_endpt])
+                    self.IOamp[headstage][num]=maxvm-RMP
+                    plt.plot(time,trace+num*offset, color=mycolor)
+                    plt.plot(time[peakpt],trace[peakpt]+num*offset,'r*')
+                    for pt in [basestartpt,base_endpt]:
+                        plt.plot(time[pt],trace[pt]+num*offset,'k.')
     
     def normalize(self):
         from scipy import optimize
@@ -602,8 +639,8 @@ class PatchAnal():
         data_dict={'slope':self.Bopt,'slope_std':self.Bstd,'meanpre':self.meanpre,'max_latency':self.max_latency,'rheobase':self.rheobase,'psp_dt':self.dt} #single values
         tracedict={'amp':self.pspamp,'RMP':self.RMP, 'Raccess': self.Raccess,'normPSP': self.normpsp,'psptime':self.psptime,'peaktime':self.peaktime} #arrays
         IV_IFsummary={'IV':self.IV_IF,'spikes':self.IV_IF_spikes,'dt':self.IV_dt} #analysis of IV_IF routines
-        #inductdict={'spikes':self.num_spikes} #in GrpAvg, calculate mean spikes per routine?
-        np.savez(outfname, trace=tracedict,params=self.params,data=data_dict,IV_IF=IV_IFsummary,anal_params=self.anal_params)
+        induct_dict={'spikes':self.num_spikes,'induction':self.params['induction'], 'ISImin':self.min_interval, 'ISIother':self.other_interval, 'time_induct':self.params['time_to_induct'], 'spikes':self.spikes} #in GrpAvg, calculate mean spikes per routine?
+        np.savez(outfname, trace=tracedict,params=self.params,data=data_dict,IV_IF=IV_IFsummary,anal_params=self.anal_params,induct=induct_dict)
 
 if __name__=='__main__':
     ARGS='250125_4 -headstages H2 -celltype D1-SPN -IOrange 3.2 2.3 1.5'
@@ -623,16 +660,20 @@ if __name__=='__main__':
     exp.meta_data()
     exp.init_arrays()
     exp.IV_IF_anal()
-    if len(exp.induction_list):
-        exp.analyze_theta()
     exp.calc_psp()
     exp.normalize()
+    if len(exp.induction_list):
+        stim_time=exp.analyze_theta()
+    exp.IO_curve()
     exp.write_data()
     if exp.graphs:
         pu.IVIF_plot(exp)
         pu.trace_plot(exp)
         pu.summary_plot(exp)
+        pu.IO_plot(exp)
+        if len(exp.induction_list):
+            pu.induction_plot(exp,stim_time)
 
     ########## NEXT STEPS: ################
-    #### 1. IO analysis
-    #### 2. optional graphs of the induction traces
+    #### Debug with additional data
+
