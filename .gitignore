@@ -13,3 +13,7 @@ igor.egg-info/
 *.txt~
 *.csv~
 *.png
+*.npz
+*.h5
+*.pxp
+*.zip
