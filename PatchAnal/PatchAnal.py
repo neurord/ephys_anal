@@ -115,18 +115,6 @@ class PatchAnal():
         self.params['Stim_interval']={r:self.Stim_interval for r in routines} #initialize here, in case no notebook file
 
     def read_notebook(self): #extract routine and sweep time from notebook file, if it was saved
-
-        def find_notebook_file(files):
-            file_found=False
-            i=0
-            while not file_found and i<len(files):
-                with open(files[i],'r') as myfile: #loop over all files
-                    all_lines=myfile.readlines()    #read in the text
-                    if self.experiment in all_lines[1]: #determine whether the second line lists the correct experiment name
-                        findex=i 
-                        file_found=True                       #if so, findex is defined, and loop terminates
-                i+=1
-            return findex,file_found
         #
         def parse_measures(line,measure): #measure is the name of the measurement we are looking for, e.g. Timer_time or Seg_start_time
             parts=line.split(',')
@@ -137,11 +125,11 @@ class PatchAnal():
         import glob
         self.routine_time={} #initialized regardless of whether notebook file exists
         PSPstart_dict={} #if notebook file exists, ignore the PSPstart read in ArgParser
-        nfname='Notebook_20'+self.experiment.split('_')[0]+'*.txt'  #fine all Notebook files with correct date
+        nfname=self.datadir+'Notebook_20'+self.experiment.split('_')[0]+'*.txt'  #fine all Notebook files with correct date
         files=glob.glob(nfname)
         self.theta_in_notebook=False
         if len(files):
-            findex,file_found=find_notebook_file(files)
+            findex,file_found=su.find_notebook_file(files,self.experiment)
         else:
             file_found=False
         if file_found: 
@@ -581,12 +569,13 @@ class PatchAnal():
     
     def IO_curve(self): #better to separate out colors and analysis, but would need to save more values
         from matplotlib import pyplot as plt
-        plt.figure()
+        fig,axes=plt.subplots(len(self.IO_psp),1)
+        axes=fig.axes
         colors=plt.get_cmap('plasma')
         partial_scale=0.9 #avoid the very light 
         offset=.002 #in mV, to visualize multiple traces
         self.IOamp={headstage:np.zeros(len(self.IOrange)) for headstage in self.headstages} #peak value of psp
-        for headstage in self.IO_psp.keys():  #intersection of headstages requested and those available
+        for hd,headstage in enumerate(self.IO_psp.keys()):  #intersection of headstages requested and those available
             for r in self.IO_psp[headstage].keys():
                 dt=self.get_dt(self.IO_dict[r])
                 routine_start,routine_name=self.get_routine_start(r)
@@ -607,11 +596,13 @@ class PatchAnal():
                     base_endpt=basestartpt+int(self.base_dur/dt)
                     RMP=np.mean(trace[basestartpt:base_endpt])
                     self.IOamp[headstage][num]=maxvm-RMP
-                    plt.plot(time,trace+num*offset, color=mycolor)
-                    plt.plot(time[peakpt],trace[peakpt]+num*offset,'r*')
+                    axes[hd].plot(time,trace+num*offset, color=mycolor)
+                    axes[hd].plot(time[peakpt],trace[peakpt]+num*offset,'r*')
                     for pt in [basestartpt,base_endpt]:
-                        plt.plot(time[pt],trace[pt]+num*offset,'k.')
-    
+                        axes[hd].plot(time[pt],trace[pt]+num*offset,'k.')
+            axes[hd].set_xlabel('Time (sec)')
+            axes[hd].set_ylabel(headstage+' Vm (volts)')
+            axes[0].set_title ('IO curve')   
     def normalize(self):
         from scipy import optimize
         self.meanpre={}

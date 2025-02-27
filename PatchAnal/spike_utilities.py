@@ -35,3 +35,17 @@ def rectification(traces,inject, inj_start,inj_end,window):
             minval[num]=np.mean(traces[pos-window:pos+window,num])
     return minval
 
+def find_notebook_file(files, exper):
+    file_found=False
+    i=0
+    while not file_found and i<len(files):
+        with open(files[i],'r') as myfile: #loop over all files
+            all_lines=myfile.readlines()    #read in the text
+            for line in all_lines:
+                if line.startswith('HDF5 Filename:'):
+                    if exper in line: #determine whether the line lists the correct experiment name
+                        findex=i 
+                        file_found=True                    #if so, findex is defined, and loop terminates
+                        break
+        i+=1
+    return findex,file_found
