@@ -8,6 +8,12 @@ SEC_PER_MIN=60
 def line(x,A,B):
      return B*x+A
 
+def rows_columns(n):
+    factors=list([i, n//i] for i in range(1, int(n**0.5) + 1) if n % i == 0)
+    index=np.argmin([abs(f[0]-f[1]) for f in factors])
+    cols,rows=factors[index]
+    return cols,rows
+
 def trace_plot(exp): #plot traces, for visual inspection / verify analysis
     colors=pyplot.get_cmap('plasma')
     partial_scale=0.9 #avoid the very light 
@@ -90,9 +96,7 @@ def induction_plot(exp,stim_time=[]): #plot traces, for visual inspection / veri
     partial_scale=0.9 #avoid the very light 
     offset=2 #in mV, to visualize multiple traces
     n=len(exp.spikes.keys())
-    factors=list([i, n//i] for i in range(1, int(n**0.5) + 1) if n % i == 0)
-    index=np.argmin([abs(f[0]-f[1]) for f in factors])
-    cols,rows=factors[index]
+    cols,rows=rows_columns(n)
     fig,axes=pyplot.subplots(rows,cols)
     axes=fig.axes
     fig.canvas.manager.set_window_title('induction '+exp.params['exper'])
