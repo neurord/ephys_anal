@@ -70,6 +70,21 @@ def summary_plot(exp):
     fig.show()
 
 def induction_plot(exp,stim_time=[]): #plot traces, for visual inspection / verify analysis
+    def induct_summary(ylabel,attrib,AP=None):
+        fig,axes=pyplot.subplots()
+        for i,r in enumerate(exp.num_spikes.keys()):
+            color_index=int(i*colinc*partial_scale)
+            mycolor=colors.colors[color_index]
+            index=list(exp.__getattribute__(attrib)[r].keys())
+            values=list(exp.__getattribute__(attrib)[r].values())
+            if isinstance(values[0],np.recarray) and AP:
+                values=[x.__getattribute__(AP)[0]for x in values] #could specify WHiCH AP instead of [0]
+            axes.scatter(index,values,label=r.split('_')[0],s=(20-2*i)**2,color=mycolor)
+        axes.legend()
+        axes.set_xlabel('burst number')
+        axes.set_ylabel(ylabel)
+        return fig
+
     from scipy.signal import find_peaks
     colors=pyplot.get_cmap('plasma')
     partial_scale=0.9 #avoid the very light 
@@ -108,26 +123,8 @@ def induction_plot(exp,stim_time=[]): #plot traces, for visual inspection / veri
         axes[i].set_ylabel(r.split('_')[0]+' '+'Vm (mV)')
     axes[0].legend()
     axes[0].set_title('o=~stim time, *=artifact, +=spike')
-    fig2,axes=pyplot.subplots()
-    for i,r in enumerate(exp.num_spikes.keys()):
-        color_index=int(i*colinc*partial_scale)
-        mycolor=colors.colors[color_index]
-        index=list(exp.num_spikes[r].keys())
-        values=list(exp.num_spikes[r].values())
-        axes.scatter(index,values,label=r.split('_')[0],s=(20-2*i)**2,color=mycolor)
-    axes.legend()
-    axes.set_xlabel('burst number')
-    axes.set_ylabel('num spikes')
-    fig3,axes=pyplot.subplots()
-    for i,r in enumerate(exp.spikes.keys()):
-        color_index=int(i*colinc*partial_scale)
-        mycolor=colors.colors[color_index]
-        index=list(exp.spikes[r].keys())
-        values=[x.APtime[0] for x in exp.spikes[r].values()]
-        axes.scatter(index,values,label=r.split('_')[0],s=(20-2*i)**2,color=mycolor)
-    axes.legend()
-    axes.set_xlabel('burst number')
-    axes.set_ylabel('2nd spike time (s)')
+    fig2=induct_summary('num spikes','num_spikes')
+    fig3=induct_summary('1st spike time (s)','spikes',AP='APtime')
 
 def IO_plot(exp):
     fig,axes=pyplot.subplots()
