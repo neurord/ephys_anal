@@ -146,15 +146,22 @@ class SynAnal():
                 axes[ax].scatter(self.dfset[key][p[0]],self.dfset[key][p[1]],label=key+' '+str(round(corr,4)))
                 axes[ax].set_xlabel(p[0])
                 axes[ax].set_ylabel(p[1])
-                axes[ax].legend()
-            
+                axes[ax].legend()            
         
     def save_data(self):
+        self.params['SxDate']=self.SurgeryDate
+        self.params['age']=self.age
+        self.params['ID']=self.ID
+        self.params['region']=self.region
+        self.params['drug']=self.drug
         if 'exper' in self.params:
             outfname=self.datadir+self.params['exper']
         else:
             outfname=self.datadir+self.params['file']
-        np.savez(outfname, params=self.params,data=self.results)
+        for key in self.dfset.keys():
+            h=HEADSTAGE_I[key.split('_')[-1]]
+            self.params['celltype']=self.celltypes[h]
+            np.savez(outfname+h, params=self.params,data=self.results[key])
 
 
 if __name__=='__main__':
