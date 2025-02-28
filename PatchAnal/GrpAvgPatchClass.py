@@ -229,20 +229,11 @@ class GrpPatch:
         np.savetxt(f, SASoutput, fmt='%s', delimiter='   ')
         f.close()
 
-    def group_to_word(self,grp):
-        if isinstance(grp,tuple) or isinstance(grp,list):
-            grp_nm='_'.join(grp)
-        elif isinstance(grp,str):
-            grp_nm=grp
-        else:
-            print('unknown group structure.  Not tuple or string or list')
-            grp_nm=''
-        return grp_nm
 
     def bar_graph_data(self,exclude_name): #this only plots and writes the 1st time sample
         lines=[]
         for grp in self.grp_data.groups.keys():
-            grp_nm=[self.group_to_word(grp)]
+            grp_nm=[grp_utl.group_to_word(grp)]
             PSP_mean=self.grp_data.get_group(grp).PSPsamples.values
             line=grp_nm+[round(np.mean(PSP_mean,axis=0)[1]*100,5)]+[round((np.std(PSP_mean,axis=0)[1]/np.sqrt(len(PSP_mean)))*100,5)]
             lines.append(line)
