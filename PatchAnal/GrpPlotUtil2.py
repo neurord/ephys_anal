@@ -146,3 +146,19 @@ def group_to_word(grp):
         print('unknown group structure.  Not tuple or string or list')
         grp_nm=''
     return grp_nm
+
+def read_IDfile(grp,IDfield,indep_var):
+    import csv
+    #initialize one dictonary for each indep var
+    for id in indep_var:
+        vars()[id]=dict()
+    with open(grp.subdir+grp.IDfile+'.csv', newline='', encoding="utf-8") as mycsvfile: #Seems that utf-8 encoding doesn't always work
+        my_reader = csv.DictReader(mycsvfile)
+        column_names = my_reader.fieldnames ##Grabs the column names from the csv file. 
+        for each_dict in my_reader:  #each line is a dictionary
+            if each_dict[IDfield]: #if ID field is not blank
+                for iv in indep_var: #vars()[id] is the dictinary name
+                    vars()[iv][each_dict[IDfield]]=each_dict[iv] #add to dictionary
+        for iv in indep_var:
+            grp.whole_df[iv] = grp.whole_df['ID'].map(vars()[iv])
+            print(grp.whole_df[iv])
