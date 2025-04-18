@@ -20,6 +20,7 @@ SEC_PER_MIN=60 #global
 class GrpPatch:
     def __init__(self, params): 
         self.params = params
+        self.IDfile=params.IDfile
         self.subdir = params.outputdir
         self.slope_std_factor=params.slope_std 
         self.sepvarlist= params.sepvarlist
@@ -224,7 +225,7 @@ class GrpPatch:
             if not np.all([np.isnan(k) for k in pspmean]):
                 SASoutput=np.column_stack((SASoutput,pspmean))
                 SASheader += ' normPSP_'+str(self.sample_times[col])
-        f=open("PARAMSforSAS.txt", 'w')
+        f=open(self.subdir+"PARAMSforSAS.txt", 'w')
         f.write(SASheader +"\n")
         np.savetxt(f, SASoutput, fmt='%s', delimiter='   ')
         f.close()
@@ -239,14 +240,14 @@ class GrpPatch:
             lines.append(line)
             #print(line,np.std(PSP_mean,axis=0)[1])
         prefix=self.common_filename()
-        f=open(prefix+"_BarGraphmeans.txt", 'w')
+        f=open(self.subdir+prefix+"_BarGraphmeans.txt", 'w')
         f.write('  '.join(self.sepvarlist)+'    mean    sterr \n')
         np.savetxt(f, lines, fmt='%s', delimiter='   ')
         f.close()
         for grp in self.grp_data.groups.keys():
             PSP_mean=self.grp_data.get_group(grp).PSPsamples.values
             data_column=[ps[1]*100 for ps in PSP_mean] #convert the 1st time sample to percent
-            f=open(self.filenm[grp]+"_points.txt",'w')
+            f=open(self.subdir+self.filenm[grp]+"_points.txt",'w')
             if isinstance(grp,tuple):
                 grp_vars=[g for i,g in enumerate(grp) if self.sepvarlist[i] not in exclude_name]
                 columnheading=[prefix+'_'.join(grp_vars)]     #assumes you don't want theta as part of column name ; assumes drug comes before sex in ARGS           
@@ -259,7 +260,7 @@ class GrpPatch:
     def write_traces(self): #FIXME: use this for writing IO curve also?  Use current stim instead of minutes
         frac_2_percent = 100
         for gnum in self.grp_data.groups.keys():
-            f=open(self.filenm[gnum]+".txt",'w')                      
+            f=open(self.subdir+self.filenm[gnum]+".txt",'w')                      
             outputdata=np.column_stack((self.minutes[gnum], self.samples[gnum],
                                 frac_2_percent*self.avg_PSP[gnum], frac_2_percent*self.stderr_PSP[gnum]))
             header="time "+self.filenm[gnum]+"count "+self.filenm[gnum]+"normPSP_AVG "+self.filenm[gnum]+"normPSP_SE "
@@ -271,7 +272,7 @@ class GrpPatch:
         import scipy.stats
         self.IVIF_variables.remove('Im')
         for gnum in self.grp_data.groups.keys():
-            f=open(self.filenm[gnum]+"_IVIF.txt",'w') 
+            f=open(self.subdir+self.filenm[gnum]+"_IVIF.txt",'w') 
             outputdata=self.grp_data.get_group(gnum).Im.mean()*1e12 #Convert to pA for printing, np.mean(self.grp_data.get_group(gnum).Im.values,axis=0)
             header='Im(pA)   '
             for yvar in self.IVIF_variables:
@@ -300,7 +301,7 @@ class GrpPatch:
         return filnm      
 
 if __name__ =='__main__':        
-    ARGS = "-sepvarlist region -plot_ctrl 111"      
+    ARGS = "BlackwellMouseColony -sepvarlist celltype -plot_ctrl 111"      
     exclude_name=[] #['theta'] #use to exclude variable(s) from column name in _points files	        
     try:
         commandline = ARGS.split() #in python: define space-separated ARGS string
@@ -319,6 +320,7 @@ if __name__ =='__main__':
         sys.exit('************ No files found *********')
     if len(grp.outfnames):
         grp.read_data()
+        grp_utl.read_IDfile(grp,'Sample',['Status']) #'Sample' has the unique identifier, ['Status'] is list of independent variables, e.g., sex, genotype to be added to df
         grp.plot_bad()
         grp.group_data('psptime','normPSP') 
         if int(params.plot_ctrl[1])>0:
