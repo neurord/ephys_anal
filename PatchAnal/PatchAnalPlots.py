@@ -83,8 +83,9 @@ def induction_plot(exp,stim_time=[]): #plot traces, for visual inspection / veri
             mycolor=colors.colors[color_index]
             index=list(exp.__getattribute__(attrib)[r].keys())
             values=list(exp.__getattribute__(attrib)[r].values())
-            if isinstance(values[0],np.recarray) and AP:
-                values=[x.__getattribute__(AP)[0]for x in values] #could specify WHiCH AP instead of [0]
+            if len(values):
+                if isinstance(values[0],np.recarray) and AP:
+                    values=[x.__getattribute__(AP)[0]for x in values] #could specify WHiCH AP instead of [0]
             axes.scatter(index,values,label=r.split('_')[0],s=(20-2*i)**2,color=mycolor)
         axes.legend()
         axes.set_xlabel('burst number')

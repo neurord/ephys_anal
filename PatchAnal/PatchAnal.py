@@ -143,7 +143,7 @@ class PatchAnal():
                     self.series_start[series]=[i+1] #starting line number for series/routine name
                     if self.induction in series: 
                         self.theta_in_notebook=True
-                elif line=='\n': #end of series/routine, except for last series. Requires that these lines are encountered AFTER Series
+                elif line=='\n' and len(self.series_start[series])<2: #end of series/routine, except for last series. Requires that these lines are encountered AFTER Series
                     self.series_start[series].append(i) 
                 elif line.startswith('1 - '): #remaining lines: read meta data
                     if 'Animal Age' in line:
@@ -334,7 +334,7 @@ class PatchAnal():
     def analyze_theta(self):  #extract time of theta - to calculate time to induction
         def induct_params(routine_name):
             #determine burst freq, induct_freq and train_interval 
-            if len(self.PSPstart[routine_name])>1:
+            if isinstance(self.PSPstart[routine_name],list):
                 burst_freq= np.mean(np.diff(self.PSPstart[routine_name])) #20 ms for Theta, nan for 20 Hz
                 self.params['induction']['burst_freq']=burst_freq
             else:
@@ -355,7 +355,7 @@ class PatchAnal():
         def ISI_anal(AP_times, routine_name):
             #if there is no burst frequency, just use time of single stim
             adjust=self.min_risetime-self.artifact_decay #artifact decay is too long for labeling stim time, to show it occurs prior to AP
-            if len(self.PSPstart[routine_name])>1:
+            if len(self.PSPstart[routine_name])>1:  #Might need to use isinstance instead of length
                 #FIXME: APs seem to occur immediately after stim, or sometimes ~4 ms later
                 stim_time=np.array([self.PSPstart[routine_name][0]+adjust+i*np.mean(np.diff(self.PSPstart[routine_name])) for i in range(stim_per_burst)])
             else:
@@ -403,6 +403,8 @@ class PatchAnal():
                 self.num_spikes[r][num]=num_peaks #num spikes within burst
                 if len(peak_times):
                     stim_time=ISI_anal(peak_times,routine_name) #should be the same for each routine
+                else:
+                    stim_time=[]
         induct_params(routine_name)
         if self.theta_in_notebook:
             print('timer time available for induction')
@@ -626,15 +628,16 @@ class PatchAnal():
                 self.Bopt[headstage]=self.Bstd[headstage]=self.Aopt[headstage]=np.nan
 
     def write_data(self):
-        outfname=self.experiment
+        outfname=self.outputdir+self.experiment
         data_dict={'slope':self.Bopt,'slope_std':self.Bstd,'meanpre':self.meanpre,'max_latency':self.max_latency,'rheobase':self.rheobase,'psp_dt':self.dt} #single values
         tracedict={'amp':self.pspamp,'RMP':self.RMP, 'Raccess': self.Raccess,'normPSP': self.normpsp,'psptime':self.psptime,'peaktime':self.peaktime} #arrays
         IV_IFsummary={'IV':self.IV_IF,'spikes':self.IV_IF_spikes,'dt':self.IV_dt} #analysis of IV_IF routines
-        induct_dict={'spikes':self.num_spikes,'induction':self.params['induction'], 'ISImin':self.min_interval, 'ISIother':self.other_interval, 'time_induct':self.params['time_to_induct'], 'spikes':self.spikes} #in GrpAvg, calculate mean spikes per routine?
-        np.savez(outfname, trace=tracedict,params=self.params,data=data_dict,IV_IF=IV_IFsummary,anal_params=self.anal_params,induct=induct_dict)
+        if len(self.induction_list):
+            induct_dict={'spikes':self.num_spikes,'induction':self.params['induction'], 'ISImin':self.min_interval, 'ISIother':self.other_interval, 'time_induct':self.params['time_to_induct'], 'spikes':self.spikes} #in GrpAvg, calculate mean spikes per routine?
+        np.savez(outfname, trace=tracedict,params=self.params,data=data_dict,IV_IF=IV_IFsummary,anal_params=self.anal_params)#,induct=induct_dict)
 
 if __name__=='__main__':
-    ARGS='250125_4 -headstages H2 -celltype D1-SPN -IOrange 3.2 2.3 1.5'
+    ARGS='241218_3 -headstages H2 -celltype D1-SPN -IOrange 3.2 2.3 1.5'
     try:
         commandline = ARGS.split() 
         do_exit = False
