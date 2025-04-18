@@ -7,8 +7,8 @@ def ArgParserPatch(commandline,do_exit,flag=0):
     parser.add_argument('-headstages', type=str, nargs="+", help='which headstage to analyze (default=both)', default=['H1','H2']) #FIXME - make this required for PatchAna?
     parser.add_argument("-celltype", type=str, nargs="+", choices=["D1-SPN", "FSI", "D2-SPN",'ChI','other'],help="D1-SPN, D2-SPN, FSI or other cell type, one for each headstage") #FIXME - make this required for PatchAnal?
     parser.add_argument('-digstim',type=float,help='value of dig stim for theta') #Value of digi stimulation. FIXME - make this required
-    parser.add_argument('-datadir',type = str, default = "C:\\Users\\klblackwell\\Documents\\Python\\ephys_anal\\PatchAnal\\",   help="Directory containing raw data")
-    parser.add_argument('-outputdir',  type = str, default = "C:\\Users\\klblackwell\\Documents\\Python\\ephys_anal\\PatchAnal\\", help="Directory for npz files")
+    parser.add_argument('-datadir',type = str, default = "C:\\Users\\klblackwell\\Documents\\Python\\ephys_anal\\PatchAnal\\Theta\\",   help="Directory containing raw data")
+    parser.add_argument('-outputdir',  type = str, default = "C:\\Users\\klblackwell\\Documents\\Python\\ephys_anal\\PatchAnal\\Theta\\", help="Directory for npz files")
     parser.add_argument('-filetype',  type = str, default = ".h5", help="filetype of experiment file")
     parser.add_argument('--no-graphs', '-g', dest='graphs', default=True, action='store_false') # -g optional and not position-defined (its absence OK too)
     parser.add_argument('-plotstart',type=float,default=0,help='time in sec when plots will start')
@@ -53,6 +53,7 @@ def ArgParserPatch(commandline,do_exit,flag=0):
     '''
     #parameters only used in GrpAvg
     if flag:
+        parser.add_argument('IDfile', type=str)
         parser.add_argument("-samp_time", nargs="+",default=[20,30],) 
         parser.add_argument('-plot_ctrl',type=str,default='100', help='1st bit: show plots, 2nd bit: #columns in figure, 3rd bit: plot correlations') 
         parser.add_argument("-sepvarlist", nargs="+",default=['sex','region'],help='list of separation variables for grouping data')
