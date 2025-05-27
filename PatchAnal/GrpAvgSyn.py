@@ -102,6 +102,18 @@ class GrpSyn:
             for grp in self.grp_data.groups.keys():
                 ax.plot(self.cdf_tot[yvar][grp].cdf.quantiles, self.cdf_tot[yvar][grp].cdf.probabilities,label=grp)
             ax.legend()
+            ax.set_xlabel(yvar)
+            ax.set_ylabel('probability')
+        for yvar in self.histtypes: #write CDF data to file
+            fname='CDF_'+yvar #optionally, use sex and celltype
+            for grp in self.grp_data.groups.keys():
+                var_name=yvar+'_'+'_'.join(grp)
+                header=var_name+'_quantiles '+var_name+'_cumprob'
+                data=np.column_stack((self.cdf_tot[yvar][grp].cdf.quantiles, self.cdf_tot[yvar][grp].cdf.probabilities))
+                f=open(self.subdir+fname+'.txt','w')
+                f.write(header +"\n")
+                np.savetxt(f, data, fmt='%s', delimiter='   ')
+                f.close()
 
 
     def write_stat_data(self):
@@ -123,7 +135,7 @@ class GrpSyn:
 
 
 if __name__ =='__main__':        
-    ARGS = "16pEphysAnimalInformation -sepvarlist Sex -plot_ctrl 11"      
+    #ARGS = "16pEphysAnimalInformation -sepvarlist Sex genotype celltype -plot_ctrl 11"      
     try:
         commandline = ARGS.split() 
         do_exit = False
