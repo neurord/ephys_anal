@@ -346,8 +346,8 @@ class SynAnal():
                 ax.plot(time[rise10:rise90],traces[rise10:rise90,sn],'cyan')
                 ax.plot(time[decay_pt],traces[decay_pt,sn],color='purple',marker='*',ms=8)
                 ax.plot(time[int(self.decay_time/self.dt)+pt],traces[int(self.decay_time/self.dt)+pt,sn],color='black',marker='|',ms=15)
-                #keep=input('keep this PSC from sweep '+str(sn)+' at '+str(round(pt*self.dt,4))+'s (y/n)? ')
-                keep='y'
+                keep=input('keep this PSC from sweep '+str(sn)+' at '+str(round(pt*self.dt,4))+'s (y/n)? ')
+                #keep='y'
                 #for art in list(ax.lines[1:]):art.remove() #remove the color coding and peak point?
                 if keep=='y' or keep == 'Y':
                     mydict={'Event Amplitude (A)':amp,'Absolute Event Time (s)':pt*self.dt+sn*time[-1],
@@ -417,8 +417,8 @@ class SynAnal():
 
 
 if __name__=='__main__':
-    #to run
-    ARGS='250501_4 6 8 -headstage H2 -celltype D1-SPN -bins 50 -height 15e-12 -wlen 0.08 -datadir IPSCs/'
+    #uncomment (and edit) to run in debugger
+    #ARGS='250501_4 6 8 -headstage H2 -celltype D1-SPN -bins 50 -height 15e-12 -wlen 0.08 -datadir IPSCs/'
     try:
         commandline = ARGS.split() 
         do_exit = False
@@ -435,13 +435,13 @@ if __name__=='__main__':
             'decay':'Event Decay Tau (s)',
             'amp':'Event Amplitude (A)', 'width':'width (s)'}
     #use events detected by dPatch, with values written to notebook; need to measure halfwidth
-    exp.halfwidth()
-    for key,df in exp.dfset.items():
-        print(key,'           CORRELATIONS for peaks found with dPatch\n',df.corr(),'\n')
+    '''    exp.halfwidth()
+        for key,df in exp.dfset.items():
+            print(key,'           CORRELATIONS for peaks found with dPatch\n',df.corr(),'\n')
 
-    results=exp.analyze(measures,exp.dfset,)
-    exp.save_data(results,exp.dfset)
-
+        results=exp.analyze(measures,exp.dfset,)
+        exp.save_data(results,exp.dfset)
+    '''
     #peak detection using scipy's find_peaks
     exp.detect_events(params.sweeps,width=5e-3) #image size, height of events, width used for detection
     results2=exp.analyze(measures, exp.dfset2)
