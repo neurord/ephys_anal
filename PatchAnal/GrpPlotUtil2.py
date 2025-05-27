@@ -158,7 +158,7 @@ def read_IDfile(grp,IDfield,indep_var):
         for each_dict in my_reader:  #each line is a dictionary
             if each_dict[IDfield]: #if ID field is not blank
                 for iv in indep_var: #vars()[id] is the dictinary name
-                    vars()[iv][each_dict[IDfield]]=each_dict[iv] #add to dictionary
+                    vars()[iv]['JK-'+each_dict[IDfield]]=each_dict[iv] #add to dictionary
         for iv in indep_var:
             grp.whole_df[iv] = grp.whole_df['ID'].map(vars()[iv])
             print(grp.whole_df[iv])
