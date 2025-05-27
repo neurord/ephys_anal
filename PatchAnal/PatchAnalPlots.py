@@ -146,3 +146,43 @@ def IO_plot(exp):
         axes.set_ylabel ('PSP amplitude ')
     axes.legend()
     fig.show()
+
+def plot_hist(measures,dfset,exp):
+    from matplotlib import pyplot as plt
+    plt.ion()
+    n=len(measures)
+    cols,rows=rows_columns(n)
+    fig,axes=plt.subplots(rows,cols)
+    axes=fig.axes
+    for key in dfset.keys():
+        for ax,m in enumerate(measures):
+            minv=np.percentile(dfset[key][m].dropna().values,1)
+            maxv=np.percentile(dfset[key][m].dropna().values,99)
+            axes[ax].hist(dfset[key][m].values,range=(minv,maxv),bins=exp.bins)
+            if m in exp.units:
+                label=m+'*'+exp.units[m]
+            else:
+                label=m
+            axes[ax].set_xlabel(label)
+    fig.canvas.manager.set_window_title('Histogram '+exp.params['exper'])
+    fig.tight_layout()
+    return fig
+
+def plot_peaks(fig,axes, time,amp,color,symbol=None):
+    for i,(tm,am) in enumerate(zip(time,amp)):
+        axes[i].scatter(tm,am,marker=symbol,c=color) #use text marker in plot_traces
+
+def plot_pairs(dfset,pairs):
+    from matplotlib import pyplot as plt
+    plt.ion()
+    cols,rows=rows_columns(len(pairs))
+    fig,axes=plt.subplots(rows,cols)
+    axes=fig.axes
+    for ax,p in enumerate(pairs):
+        for key in dfset.keys():
+            corr=dfset[key][p[0]].corr(dfset[key][p[1]])
+            axes[ax].scatter(dfset[key][p[0]],dfset[key][p[1]],label=key+' '+str(round(corr,4)))
+            axes[ax].set_xlabel(p[0])
+            axes[ax].set_ylabel(p[1])
+            axes[ax].legend()            
+        
