@@ -413,7 +413,7 @@ class SynAnal():
                 h=HEADSTAGE_I[key.split('_')[-1]]
             self.params['celltype']=self.celltypes[h]
             #FIXME: find_peaks file will over-write the npz file using dPatch peaks
-            np.savez(outfname+h, params=self.params,data=results[key],cdf=self.ecdf[key])
+            np.savez(outfname+h, params=self.params,data=results[key],cdf=self.ecdf[key],events=dfset[key].to_dict(orient='list'))
 
 
 if __name__=='__main__':
