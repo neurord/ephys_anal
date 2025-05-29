@@ -11,7 +11,7 @@ from GrpPlotUtil2 import group_to_word, read_IDfile
 def ArgParserSyn(commandline,do_exit):
     parser = argp.ArgumentParser()
     parser.add_argument('IDfile', type=str)
-    parser.add_argument('-subdir',type = str, default = "C:\\Users\\klblackwell\\Documents\\Python\\ephys_anal\\PatchAnal\\IPSCs\\",   help="Directory with npz files")
+    parser.add_argument('-subdir',type = str, default = "C:\\Users\\klblackwell\\Documents\\Python\\ephys_anal\\PatchAnal\\IPSCs\\NPZ_files\\",   help="Directory with npz files")
     parser.add_argument('-plot_ctrl',type=str,default='11', help='1st bit: show plots, 2nd bit: plot correlations') 
     parser.add_argument("-sepvarlist", nargs="+",default=['sex','region'],help='list of separation variables for grouping data')
     #specify these next variables to analyze only a subset of the data
@@ -53,6 +53,7 @@ class GrpSyn:
                     print ("***** ignoring:", param['exper'])
                 next 
             else: #data meets all criteria
+                print('using experiment ',outfname)
                 PARAMS.append(param)
                 DATAS.append(data)
                 if i==0:
@@ -90,13 +91,31 @@ class GrpSyn:
                 self.cdf_tot[yvar][grp]=scipy.stats.ecdf(alldata)
 
 
-    def plot_groups(self,ycol):
+    def plot_groups(self,ycols,line_org=None):
         #grp_nm=group_to_word(group)
-        xvals=self.grp_data.groups
-        x=[group_to_word(g) for g in xvals.keys()]
-        yvals=self.grp_data.mean(numeric_only=True)[ycol]
-        pyplot.scatter(x,yvals)
-        pyplot.ylabel(ycol)
+        colors=['r','b','k','m','c']
+        for ycol in ycols:
+            pyplot.figure()
+            if line_org:
+                line_types=np.unique(self.whole_df[line_org])
+                new_sepvarlist=[x for x in self.sepvarlist if x != line_org]
+                for i,line in enumerate(line_types):
+                    dfsubset=self.whole_df[self.whole_df[line_org]==line]
+                    new_grps = dfsubset.groupby(new_sepvarlist)
+                    xvals=new_grps.groups
+                    x=[group_to_word(g) for g in xvals.keys()]
+                    yvals=new_grps.mean(numeric_only=True)[ycol]
+                    yerr=new_grps.sem(numeric_only=True)[ycol]
+                    pyplot.errorbar(x,yvals,yerr=yerr,fmt='o',color=colors[i%len(colors)],label=line)
+                    pyplot.ylabel(ycol)
+            else:
+                xvals=self.grp_data.groups
+                x=[group_to_word(g) for g in xvals.keys()]
+                yvals=self.grp_data.mean(numeric_only=True)[ycol]
+                yerr=self.grp_data.sem(numeric_only=True)[ycol]
+                pyplot.errorbar(x,yvals,yerr=yerr,fmt='o')
+                pyplot.ylabel(ycol)
+            pyplot.legend()
         fig1,axes=pyplot.subplots(len(self.histtypes),1)
         for yvar,ax in zip(self.histtypes,axes):
             for grp in self.grp_data.groups.keys():
@@ -105,12 +124,12 @@ class GrpSyn:
             ax.set_xlabel(yvar)
             ax.set_ylabel('probability')
         for yvar in self.histtypes: #write CDF data to file
-            fname='CDF_'+yvar #optionally, use sex and celltype
+            fname='CDF_' 
             for grp in self.grp_data.groups.keys():
                 var_name=yvar+'_'+'_'.join(grp)
                 header=var_name+'_quantiles '+var_name+'_cumprob'
                 data=np.column_stack((self.cdf_tot[yvar][grp].cdf.quantiles, self.cdf_tot[yvar][grp].cdf.probabilities))
-                f=open(self.subdir+fname+'.txt','w')
+                f=open(self.subdir+fname+var_name+'.txt','w')
                 f.write(header +"\n")
                 np.savetxt(f, data, fmt='%s', delimiter='   ')
                 f.close()
@@ -135,7 +154,7 @@ class GrpSyn:
 
 
 if __name__ =='__main__':        
-    #ARGS = "16pEphysAnimalInformation -sepvarlist Sex genotype celltype -plot_ctrl 11"      
+    ARGS = "16pEphysAnimalInformation -sepvarlist Sex genotype celltype -plot_ctrl 11"      
     try:
         commandline = ARGS.split() 
         do_exit = False
@@ -155,5 +174,5 @@ if __name__ =='__main__':
         grp.group_data()
         grp.histogram()
         grp.write_stat_data()
-        grp.plot_groups('decay_mean')
+        grp.plot_groups(['amp_mean','decay_mean','width_mean'],line_org='celltype') #FIXME: make these args
  
