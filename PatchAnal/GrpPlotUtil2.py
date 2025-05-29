@@ -149,9 +149,11 @@ def group_to_word(grp):
 
 def read_IDfile(grp,IDfield,indep_var):
     import csv
+    print_vars=['exper','ID']
     #initialize one dictonary for each indep var
     for id in indep_var:
         vars()[id]=dict()
+        print_vars.append(id)
     with open(grp.subdir+grp.IDfile+'.csv', newline='', encoding="utf-8") as mycsvfile: #Seems that utf-8 encoding doesn't always work
         my_reader = csv.DictReader(mycsvfile)
         column_names = my_reader.fieldnames ##Grabs the column names from the csv file. 
@@ -161,4 +163,4 @@ def read_IDfile(grp,IDfield,indep_var):
                     vars()[iv]['JK-'+each_dict[IDfield]]=each_dict[iv] #add to dictionary
         for iv in indep_var:
             grp.whole_df[iv] = grp.whole_df['ID'].map(vars()[iv])
-            print(grp.whole_df[iv])
+    print(grp.whole_df[print_vars])
