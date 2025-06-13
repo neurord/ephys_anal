@@ -40,11 +40,10 @@ class GrpSyn:
         DATAS = []
         PARAMS = []
         for i,outfname in enumerate(self.outfnames):
-            with open(outfname, 'rb') as f:
-                datadict = np.load(f,allow_pickle=True)
-                data=datadict['data'].item()
-                param=datadict['params'].item()
-                cdf=datadict['cdf'].item()
+            datadict = np.load(outfname,allow_pickle=True)
+            data=datadict['data'].item()
+            param=datadict['params'].item()
+            cdf=datadict['cdf'].item()
             ignore = ((self.params.drug and self.params.drug != param['drug']) or
                         (self.params.region and self.params.region != param['region']))
                     # or(self.params.sex and self.params.sex != param['sex'])                        
