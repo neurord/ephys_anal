@@ -44,6 +44,14 @@ class GrpSyn:
             data=datadict['data'].item()
             param=datadict['params'].item()
             cdf=datadict['cdf'].item()
+            for key in cdf.keys():
+                nans_found=np.sum(np.isnan(cdf[key]))
+                if nans_found:
+                    print('!!!!!!!!!!!',nans_found,' nans found in',key,'of cdf of',outfname)
+                    for ii in range(nans_found):
+                        nan_index=list(np.isnan(cdf['amp'])).index(True) #will only find first instance
+                        cdf['amp']=np.delete(cdf['amp'],nan_index)
+                        cdf['IEI']=np.delete(cdf['IEI'],nan_index)
             ignore = ((self.params.drug and self.params.drug != param['drug']) or
                         (self.params.region and self.params.region != param['region']))
                     # or(self.params.sex and self.params.sex != param['sex'])                        

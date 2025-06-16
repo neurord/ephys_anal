@@ -160,7 +160,7 @@ class SynAnal():
             for m,nm in measures.items():
                 if nm.split()[-1] in self.units.keys():
                     dfset[key][nm]=dfset[key][nm]*float(self.units[nm.split()[-1]]) #convert from A to pA
-                results[key][m+'_mean']=dfset[key].mean()[nm]
+                results[key][m+'_mean']=dfset[key].mean()[nm] #FIXME: add units to column names
                 results[key][m+'_stdev']=dfset[key].std()[nm]
             results[key]['Freq_mean']=np.nanmean(1/dfset[key]['Interevent Interval (s)']) #FIxME: 
             results[key]['Freq_std']=np.nanstd(1/dfset[key]['Interevent Interval (s)']) #FIxME: 
