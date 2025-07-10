@@ -30,7 +30,7 @@ def ArgParserPatch(commandline,do_exit,flag=0):
     #parser.add_argument('-injstart', type=float, help="injection start time", default= 0.2)
     #parser.add_argument('-injstop', type = float, help="injection stopping time", default = 0.6)
     if not flag:
-        parser.add_argument('-IOrange',type=float,nargs='+',help='values of dig stim for IOtest, space separated',default=[3.2,2.3,1.5])
+        parser.add_argument('-IOrange',type=float,nargs='+',help='values of dig stim for IOtest, space separated',default=[0.02, 0.12, 0.22, 0.32, 0.42, 0.52, 0.62, 1.2, 2.2, 3.2])
         parser.add_argument('-PSPstart', type=float, help = 'earliest time a PSP could be detected', default=0.927)
         parser.add_argument('-basestart', type=float, help='time PRIOR to event for assessing baseline membrane potential', default=0.12)
         parser.add_argument('-base_dur', type=float, help='duration of baseline period, make smaller than basestart', default=0.10) # <= basestart
@@ -42,7 +42,7 @@ def ArgParserPatch(commandline,do_exit,flag=0):
         parser.add_argument('-min_risetime',type=float,help='AP rejected if risetime faster than this',default=0.0003)
         parser.add_argument('-threshval',type=float,help='Vm at earliest point that rise exceeds 2% of max risetime', default=0.02) #with 5%, bigger AHP, smalle spike
         parser.add_argument('-PSP_interval',type=int,help='time between PSP baseline traces, if no notebook file', default=30) #with 5%, bigger AHP, smalle spike
-        parser.add_argument("-decay", type = float, help='stimulation artifact decay time, in sec', default = 0.002)
+        parser.add_argument("-decay", type = float, help='stimulation artifact decay time, in sec', default = 0.002) #includes time for AP if one occurs
         parser.add_argument("-induction", type=str, choices=["ThetaBurst", "20Hz", 'None'], help='name of induction protocol', default = 'ThetaBurst')
     ### next set relates to whether a compound EPSP is observed
     '''parser.add_argument('PSPend', type=float, help='expected end of a PSP, typically between 0.265-0.28')
