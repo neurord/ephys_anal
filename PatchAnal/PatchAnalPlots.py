@@ -4,6 +4,9 @@ pyplot.ion()
 
 MV_PER_V=1000
 SEC_PER_MIN=60
+MS_PER_S=1e3
+NA_PER_AMP=1e9
+artifact_height=30 #mV - delta V between two sample points
 
 def line(x,A,B):
      return B*x+A
@@ -63,6 +66,36 @@ def IVIF_plot(exp): #plot traces, for visual inspection / verify analysis
         axes[i].set_xlabel('Time (s)')
         fig.suptitle('headstage '+headstage)
 
+def twin_plot(xval,yval,col,ax,lbl='',unit=''):
+    axtwin = ax.twinx()
+    axtwin.scatter(xval*NA_PER_AMP,yval,color=col,label=lbl)
+    axtwin.spines['right'].set_visible(True)
+    axtwin.spines['right'].set_color(col)
+    axtwin.spines['left'].set_visible(False) 
+    axtwin.tick_params('y',labelcolor=col,left=False,labelleft=False)
+    axtwin.set_ylabel(lbl+' ('+unit+')',color=col)
+    return axtwin
+
+def IVIF_measures(exp):
+    IVcolor={'H1':'b','H2':'r'}
+    figIV,axIV=pyplot.subplots()
+    figIV.suptitle('IV curve '+exp.params['exper'])
+    axIV.set_xlabel('current (nA)')
+    axIV.set_ylabel('Vm (mV)')
+    for h,IV_IF in exp.IV_IF.items():
+        for r,IVIFset in IV_IF.items():
+            if np.max(IVIFset.num_spikes)>0:
+                figIF,axes=pyplot.subplots(3,1)
+                figIF.suptitle('IF measures '+exp.params['exper'])
+                for ax,meas1,meas2,unit in zip(axes,['latency','APwidth','AHP_time'],['APfreq','APheight','AHP_amp'],['Hz','mV','mV']):
+                    ax.scatter(IVIFset.Im*NA_PER_AMP,IVIFset[meas1]*MS_PER_S,color='k')
+                    ax.set_ylabel(meas1+' (ms)')
+                    ax0twin=twin_plot(IVIFset.Im,IVIFset[meas2],'red',ax,meas2,unit)
+                axes[-1].set_xlabel('current (nA)')
+            else:
+                axIV.scatter(IVIFset.Im*NA_PER_AMP,IVIFset.Vm*MV_PER_V,label=h,color=IVcolor[h])
+    return
+
 def summary_plot(exp):
     fig,axes=pyplot.subplots()
     fig.canvas.manager.set_window_title('Summary '+exp.params['exper'])
@@ -70,6 +103,7 @@ def summary_plot(exp):
         psp_minutes=(exp.psptime[h])/SEC_PER_MIN #start from 0, convert from sec to min
         axes.plot(psp_minutes,exp.normpsp[h],color=color,marker='.',linestyle='None',label=h)
         axes.plot(psp_minutes[0:exp.num_pre],line(exp.psptime[h][0:exp.num_pre],exp.Aopt[h]/exp.meanpre[h],exp.Bopt[h]/exp.meanpre[h]),color=color,alpha=0.5)
+        nan_list(psp_minutes,exp.normpsp[h],1.0,axes,h)
         axes.set_xlabel('Time (minutes)')
         axes.set_ylabel ('Normalized PSP amplitude ')
     axes.legend()
@@ -115,7 +149,7 @@ def induction_plot(exp,stim_time=[]): #plot traces, for visual inspection / veri
             yval=(exp.data['Data'][r].__array__()[stim_pts,num])*MV_PER_V +num*offset
             xval=time[stim_pts]
             axes[i].plot(xval,yval, 'ko')
-            artifact=find_peaks(trace,height=50)[0]
+            artifact=find_peaks(trace,height=artifact_height)[0]
             yval=trace[artifact]+num*offset
             xval=time[artifact]
             axes[i].plot(xval,yval,'g*')
@@ -131,6 +165,14 @@ def induction_plot(exp,stim_time=[]): #plot traces, for visual inspection / veri
     fig2=induct_summary('num spikes','num_spikes')
     fig3=induct_summary('1st spike time (s)','spikes',AP='APtime')
 
+def nan_list(xvals,yvals,nanval,axes,h):
+    nans=np.where(np.isnan(yvals))[0]
+    if len(nans):
+        newx=[xvals[x] for x in nans]
+        newy=[nanval for x in nans]
+        axes.plot(newx,newy,color='black',linestyle='None',marker='*',label='nan'+h)
+    return 
+
 def IO_plot(exp):
     fig,axes=pyplot.subplots()
     fig.canvas.manager.set_window_title('IO curve '+exp.params['exper'])
@@ -142,6 +184,7 @@ def IO_plot(exp):
             xvals=np.arange(len(exp.IOamp[h]))
             xlbl='index'
         axes.plot(xvals,exp.IOamp[h],color=color,marker='.',linestyle='None',label=h)
+        nan_list(xvals,exp.IOamp[h],-.001,axes,h)
         axes.set_xlabel(xlbl)
         axes.set_ylabel ('PSP amplitude ')
     axes.legend()
