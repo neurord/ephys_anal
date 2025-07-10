@@ -14,6 +14,7 @@ HEADSTAGE_I={'H1':'_S1_', 'H2':'_S3_'}
 CURRENT_THRESH=5e-12 #detect current injection with 5 picoAmp change in channels S1 or S3
 SEC_PER_MSEC=0.001 #global
 capacitive_artifact_points=2 
+bad_psp=-25e-3 #above this value, probably an AP, not a PSP
 MEASURES=['Timer_Time','Seg_start_time'] #code assumes that Seg_start_time indicates time of digital stimulation
 stim_per_burst=4 #FIXME: for theta burst - different value for LTD - add to ArgParser
 
@@ -43,7 +44,7 @@ class PatchAnal():
         self.min_risetime=params.min_risetime
         self.threshval=params.threshval
         self.headstages=params.headstages
-        self.IOrange=params.IOrange
+        self.IOrange=params.IOrange 
         self.digstim=params.digstim 
         self.Stim_interval=params.PSP_interval
         self.artifact_decay=params.decay #time for decay of stimulation artifact
@@ -335,11 +336,11 @@ class PatchAnal():
         def induct_params(routine_name):
             #determine burst freq, induct_freq and train_interval 
             if isinstance(self.PSPstart[routine_name],list):
-                burst_freq= np.mean(np.diff(self.PSPstart[routine_name])) #20 ms for Theta, nan for 20 Hz
-                self.params['induction']['burst_freq']=burst_freq
+                burst_interval= np.mean(np.diff(self.PSPstart[routine_name])) #20 ms for Theta, nan for 20 Hz
+                self.params['induction']['burst_interval']=burst_interval
             else:
-                self.params['induction']['burst_freq']=np.nan
-            self.params['induction']['induct_freq']=self.params['Stim_interval'][routine_name] # 95 ms or 1/20 Hz for LTD
+                self.params['induction']['burst_interval']=np.nan
+            self.params['induction']['induct_interval']=self.params['Stim_interval'][routine_name] # 95 ms or 1/20 Hz for LTD
             #The following is kluge.  Don't want to specify routine name (e.g. ThetaBurst), cuz don't know name of 20Hz or other possible induction protocols
             #So, instead exclude specific, non-induction protocols.  Will be problematic if someone adds a protocol
             #Could do something similar to MEASURES and define induction protocols at top
@@ -354,7 +355,7 @@ class PatchAnal():
 
         def ISI_anal(AP_times, routine_name):
             #if there is no burst frequency, just use time of single stim
-            adjust=self.min_risetime-self.artifact_decay #artifact decay is too long for labeling stim time, to show it occurs prior to AP
+            adjust=-self.artifact_decay#self.min_risetime-self.artifact_decay #artifact decay is too long for labeling stim time, to show it occurs prior to AP
             if len(self.PSPstart[routine_name])>1:  #Might need to use isinstance instead of length
                 #FIXME: APs seem to occur immediately after stim, or sometimes ~4 ms later
                 stim_time=np.array([self.PSPstart[routine_name][0]+adjust+i*np.mean(np.diff(self.PSPstart[routine_name])) for i in range(stim_per_burst)])
@@ -482,7 +483,7 @@ class PatchAnal():
         offset={h:{} for h in self.headstages}
         for headstage in self.Vm_IV_IF.keys():
             for r in self.Vm_IV_IF[headstage].keys():
-                spikes_sweep=[]
+                spikes_sweep=[];APfreq=[]
                 self.IV_dt[r]=self.get_dt(self.IV_IF_dict[r])
                 #above provides dt of Vm
                 #determine time and value of hyperpolarizing pulses
@@ -492,13 +493,16 @@ class PatchAnal():
                 Im=np.mean(inject[timepoints[0]:timepoints[1]],axis=0)-inject[0]  #timepoints[0] is just before inject, so cannot use that without adding small integer
                 Vm=np.mean(traces[ss_start:inj_endpt],axis=0)-np.mean(traces[base_start:base_end],axis=0) # value of ss deltaV
                 rect=su.rectification(traces,Im, inj_startpt,inj_endpt,self.window)-np.mean(traces[base_start:base_end],axis=0) #for negative current inject, determine whether rectification
-                for num in range(np.shape(traces)[-1]):  #num indexes traces 
+                for num in range(np.shape(traces)[-1]):  #num indexes traces / sweeps
                     peaks=find_peaks(traces[inj_startpt:inj_endpt,num],self.APthresh,distance=int(self.refract/self.IV_dt[r])) #AP are defined as crossing zero, exceeding APthresh
                     if len(peaks[0]):
-                        num_spikes,_=self.find_spikes(headstage,r,num,traces[inj_startpt:inj_endpt,num],peaks[0],self.IV_dt[r],routine_type='IVIF')
+                        num_spikes,APtime=self.find_spikes(headstage,r,num,traces[inj_startpt:inj_endpt,num],peaks[0],self.IV_dt[r],routine_type='IVIF')
+                        sweep_freq=np.mean(1/np.diff(APtime))
                     else:
                         num_spikes=0
+                        sweep_freq=np.nan
                     spikes_sweep.append(num_spikes)
+                    APfreq.append(sweep_freq)
                 #mean spike values per sweep
                 mean_height=calc_mean(spikes_sweep,self.IV_IF_spikes[headstage][r],'APheight')
                 mean_width=calc_mean(spikes_sweep,self.IV_IF_spikes[headstage][r],'APwidth')
@@ -507,8 +511,8 @@ class PatchAnal():
                 latency=[np.nan for i in range(len(spikes_sweep))]
                 for i,sweep in self.IV_IF_spikes[headstage][r].items(): #use -1 instead of nan??
                     latency[i]=sweep.APtime[0]
-                self.IV_IF[headstage][r]=np.rec.fromarrays((Im,Vm,rect,spikes_sweep,latency,mean_height,mean_width,mean_ahp,mean_ahpt),
-                                                           names='Im,Vm,rect,num_spikes,latency,APheight,APwidth,AHP_amp,AHP_time')
+                self.IV_IF[headstage][r]=np.rec.fromarrays((Im,Vm,rect,spikes_sweep,latency,mean_height,mean_width,mean_ahp,mean_ahpt,APfreq),
+                                                           names='Im,Vm,rect,num_spikes,latency,APheight,APwidth,AHP_amp,AHP_time,APfreq')
                 #values that are once per routine.  add in: IR per sweep=Vm/Im, frequency?  or calculate later
                 if np.max(spikes_sweep)>0:
                     self.max_latency[headstage][r]=np.nanmax(latency)  #or if latency=-1, can just use np.max
@@ -554,13 +558,10 @@ class PatchAnal():
                 self.basestartpt=self.PSPstartpt-int(self.basestart/self.dt)  #basestart is duration prior to event 
                 self.base_endpt=self.basestartpt+int(self.base_dur/self.dt)
                 for num in range(np.shape(self.data['Data'][r].__array__())[-1]):  #num indexes arrays - resets to zero for each routine
-                    trace=self.data['Data'][r].__array__()[:,num]
-                    peakpt=np.argmax(trace[self.PSPstartpt:])+self.PSPstartpt  #may want to filter prior to selecting peaktime - use self.window as filter param
+                    trace=self.data['Data'][r].__array__()[:,num] 
+                    self.psp[headstage][trace_num],self.RMP[headstage][trace_num],peakpt=self.psp_detect(r,num,self.dt,self.PSPstartpt)
+                    self.pspamp[headstage][trace_num]=self.psp[headstage][trace_num]-self.RMP[headstage][trace_num]
                     self.peaktime[headstage][trace_num]=(peakpt)*self.dt 
-                    maxvm=np.mean(trace[peakpt-self.window:peakpt+self.window]) 
-                    self.psp[headstage][trace_num]=maxvm
-                    self.RMP[headstage][trace_num]=np.mean(trace[self.basestartpt:self.base_endpt])
-                    self.pspamp[headstage][trace_num]=maxvm-self.RMP[headstage][trace_num]
                     if len(self.sweep_time[routine_name]):
                         self.psptime[headstage][trace_num]=self.sweep_time[routine_name][num]-induct_time
                     else:
@@ -568,7 +569,18 @@ class PatchAnal():
                     #### Potential Problem: use RMP from beginning of trace as RMP 1/5 sec later.
                     self.Raccess[headstage][trace_num]=(self.RMP[headstage][trace_num]-np.mean(trace[self.hyperstartpt:self.hyper_endpt]))/self.Iaccess[num]
                     trace_num+=1
-    
+
+    def psp_detect(self, r, num, dt, stim_start):
+        trace=self.data['Data'][r].__array__()[:,num]
+        peakpt=np.argmax(trace[ stim_start:])+ stim_start
+        maxvm=np.mean(trace[peakpt-self.window:peakpt+self.window])
+        if maxvm>bad_psp: #an AP occurred.  This might not be best criteria 
+            maxvm=np.nan 
+        basestartpt=stim_start-int(self.basestart/dt)  #basestart is duration prior to event 
+        base_endpt=basestartpt+int(self.base_dur/dt)
+        RMP=np.mean(trace[basestartpt:base_endpt])
+        return maxvm, RMP, peakpt
+
     def IO_curve(self): #better to separate out colors and analysis, but would need to save more values
         from matplotlib import pyplot as plt
         fig,axes=plt.subplots(len(self.IO_psp),1)
@@ -583,28 +595,29 @@ class PatchAnal():
                 routine_start,routine_name=self.get_routine_start(r)
                 IOtraces=np.shape(self.data['Data'][r].__array__())[-1]
                 if len(self.IOrange) != IOtraces:
-                    print('IO range',len(self.IOrange), 'does not match number of IO traces',IOtraces)
+                    print('samples in IO range',len(self.IOrange), 'does not match number of IO traces',IOtraces)
                     self.IOamp[headstage]=np.zeros(IOtraces)
+                stim_start=int(self.PSPstart[routine_name]/dt)
+                #### plotting part ####
+                basestartpt=stim_start-int(self.basestart/dt)  #basestart is duration prior to event 
+                base_endpt=basestartpt+int(self.base_dur/dt)
                 colinc=(len(colors.colors)-1)/(IOtraces-1)
                 for num in range(IOtraces):  #num indexes arrays - resets to zero for each routine
-                    trace=self.data['Data'][r].__array__()[:,num]
+                    maxvm,RMP,peakpt=self.psp_detect(r,num,dt,stim_start)
+                    self.IOamp[headstage][num]=maxvm-RMP
+                    ##### Plotting part ####
+                    trace=self.data['Data'][r].__array__()[:,num] 
                     time=np.arange(len(trace))*dt
                     color_index=int(num*colinc*partial_scale)
                     mycolor=colors.colors[color_index]
-                    stim_start=int(self.PSPstart[routine_name]/dt) #arbitrary threshold
-                    peakpt=np.argmax(trace[stim_start:])+stim_start  #may want to filter prior to selecting peaktime - use self.window as filter param
-                    maxvm=np.mean(trace[peakpt-self.window:peakpt+self.window]) 
-                    basestartpt=stim_start-int(self.basestart/dt)  #basestart is duration prior to event 
-                    base_endpt=basestartpt+int(self.base_dur/dt)
-                    RMP=np.mean(trace[basestartpt:base_endpt])
-                    self.IOamp[headstage][num]=maxvm-RMP
                     axes[hd].plot(time,trace+num*offset, color=mycolor)
                     axes[hd].plot(time[peakpt],trace[peakpt]+num*offset,'r*')
                     for pt in [basestartpt,base_endpt]:
                         axes[hd].plot(time[pt],trace[pt]+num*offset,'k.')
             axes[hd].set_xlabel('Time (sec)')
             axes[hd].set_ylabel(headstage+' Vm (volts)')
-            axes[0].set_title ('IO curve')   
+            axes[0].set_title ('IO curve')  
+     
     def normalize(self):
         from scipy import optimize
         self.meanpre={}
@@ -617,7 +630,7 @@ class PatchAnal():
             self.normpsp[headstage]=self.pspamp[headstage]/self.meanpre[headstage]
             #normRMP or normRaccess? 
             if len(pretrace) > 1:   
-                popt,pcov=optimize.curve_fit(pu.line,pretime,pretrace) #NOTE: fitting to pretrace means fitting to unnormalized data
+                popt,pcov=optimize.curve_fit(pu.line,pretime[~np.isnan(pretrace)],pretrace[~np.isnan(pretrace)]) #NOTE: fitting to pretrace means fitting to unnormalized data
                 self.Aopt[headstage],self.Bopt[headstage]=popt
                 Astd,self.Bstd[headstage]=np.sqrt(np.diag(pcov))
                 if  np.abs(self.Bopt[headstage])-self.slope_std_factor*self.Bstd[headstage]>0:
@@ -637,7 +650,7 @@ class PatchAnal():
         np.savez(outfname, trace=tracedict,params=self.params,data=data_dict,IV_IF=IV_IFsummary,anal_params=self.anal_params)#,induct=induct_dict)
 
 if __name__=='__main__':
-    ARGS='241218_3 -headstages H2 -celltype D1-SPN -IOrange 3.2 2.3 1.5'
+    #ARGS='250704_0 -headstages H2 -celltype D1-SPN -decay .002'
     try:
         commandline = ARGS.split() 
         do_exit = False
@@ -662,11 +675,13 @@ if __name__=='__main__':
     exp.write_data()
     if exp.graphs:
         pu.IVIF_plot(exp)
+        pu.IVIF_measures(exp)
         pu.trace_plot(exp)
         pu.summary_plot(exp)
         pu.IO_plot(exp)
         if len(exp.induction_list):
             pu.induction_plot(exp,stim_time)
+    print('time to induction=', round(exp.params['time_to_induct']/60,2),'min')
 
     ########## NEXT STEPS: ################
     #### Debug with additional data
