@@ -3,7 +3,7 @@
 
 Analyze post-synaptic potentials before and after LTP induction from whole cell patch clamp experiments. Input must be hdf5 format file collected with dPatch.
 Assumes that Headstage1 voltage is channel S2, current is channnel S1; headstage2 voltage is channel S4, current is channel S3.  
-If a notebook file was saved, it is used to extract routine time and sweep time, relative to breakin, and also read in meta data, such as animal age and ID, tissue region, batah solution.
+If a notebook file was saved, it is used to extract routine time and sweep time, relative to breakin, and also read in meta data, such as animal age and ID, tissue region, bath solution.
 
 Analysis includes:
 
@@ -15,11 +15,13 @@ Analysis includes:
 	
 	c. Calculate access resistance from each trace
 	
-2. IV/IF: from series of current injection, calculate the change in voltage, the number of spikes (if they occur) rheobase, latency to spike, and spike characteristics.  Also calculate rectificiation if trace doesn't have spikes.
+2. IV/IF: from series of current injection, calculate the change in voltage, the number of spikes (if they occur) rheobase, latency to spike, and spike characteristics.  Also calculate rectification if trace doesn't have spikes.
 
 3. Extract PSP amplitude from traces used to construct IO curve
 
 4. Analyze the induction protocol.  Determine frequency of within and between bursts, and time between trains.  Also determine whether spikes occur during induction, and the time of spikes relative to the stimulation
+
+Output file contains PSP characteristics and access resistance for each trace, IV/IF characteristics, induction characteristics, experimental parameters and analysis parameters.
 
 Required inputs: experiment name, headstage(s) and celltype(s). If sex, age, drugs, genotype, region are not in the notebook file, these must also be specified. Specify inputs from within python with the following syntax:
 
@@ -122,13 +124,14 @@ Analyzes groups of experiments - the output of PatchAnal.py. Generates graphs an
     a file of mean, stdev, and N for each group to be used to generate publication quality figures.
 
 *The following parameters are specified in the arguments:* 
+
 	a. IDfile - csv file containing animal information such as sex or genotype (required)
 
-    b. outputdir: full path to location of pickle files (i.e., output files from PatchAnal.py)
+    	b. outputdir: full path to location of npz files (i.e., output files from PatchAnal.py)
 	
 	c. slope_std_factor: excludes data files in which baseline slope exceeds +/- this factor times the std of the fit to the baseline. default value = 2
 
-    d. sepvarlist: A list of variables and values to used to separate all the data into groups. E.g. ['sex', 'genotype' ] is a list with two separation variables: sex, and genotype.  These variables are used by the Pandas function groupby. The order of specifying variables only matters to how the plots are grouped.
+    	d. sepvarlist: A list of variables and values to used to separate all the data into groups. E.g. ['sex', 'genotype' ] is a list with two separation variables: sex, and genotype.  These variables are used by the Pandas function groupby. The order of specifying variables only matters to how the plots are grouped.
 	
 	e. samp_time: set of follow-up times (in minutes) for calculating mean plasticity change
 	
@@ -162,11 +165,12 @@ Analyzes groups of experiments - the output of synaptic.py. Generates graphs and
     a file of cumulative distribution function (quantiles and cumprob) for each group to be used to generate publication quality figures.
 
 *The following parameters are specified in the arguments:* 
+
 	a. IDfile - csv file containing animal information such as sex or genotype (required)
 
-    b. subdir: full path to location of pickle files (i.e., output files from synaptic.py)
+    	b. subdir: full path to location of npz files (i.e., output files from synaptic.py)
 	
-    c. sepvarlist: A list of variables and values to used to separate all the data into groups. E.g. ['sex', 'genotype' ] is a list with two separation variables: sex, and genotype.  These variables are used by the Pandas function groupby. The order of specifying variables only matters to how the plots are grouped.
+    	c. sepvarlist: A list of variables and values to used to separate all the data into groups. E.g. ['sex', 'genotype' ] is a list with two separation variables: sex, and genotype.  These variables are used by the Pandas function groupby. The order of specifying variables only matters to how the plots are grouped.
 	
 	d. plot_ctrl: a 2 bit string controlling the plots.
 
