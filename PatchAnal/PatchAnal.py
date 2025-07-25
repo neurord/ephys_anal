@@ -595,7 +595,8 @@ class PatchAnal():
                 routine_start,routine_name=self.get_routine_start(r)
                 IOtraces=np.shape(self.data['Data'][r].__array__())[-1]
                 if len(self.IOrange) != IOtraces:
-                    print('samples in IO range',len(self.IOrange), 'does not match number of IO traces',IOtraces)
+                    print('samples in IO range,',len(self.IOrange), ', does not match number of IO traces, ',IOtraces, ', truncating IOrange to', self.IOrange[0:IOtraces])
+                    self.IOrange=self.IOrange[0:IOtraces]
                     self.IOamp[headstage]=np.zeros(IOtraces)
                 stim_start=int(self.PSPstart[routine_name]/dt)
                 #### plotting part ####
@@ -610,13 +611,14 @@ class PatchAnal():
                     time=np.arange(len(trace))*dt
                     color_index=int(num*colinc*partial_scale)
                     mycolor=colors.colors[color_index]
-                    axes[hd].plot(time,trace+num*offset, color=mycolor)
+                    axes[hd].plot(time,trace+num*offset, color=mycolor, label=self.IOrange[num])
                     axes[hd].plot(time[peakpt],trace[peakpt]+num*offset,'r*')
                     for pt in [basestartpt,base_endpt]:
                         axes[hd].plot(time[pt],trace[pt]+num*offset,'k.')
             axes[hd].set_xlabel('Time (sec)')
             axes[hd].set_ylabel(headstage+' Vm (volts)')
-            axes[0].set_title ('IO curve')  
+            axes[0].set_title ('IO curve')
+            axes[0].legend()  
      
     def normalize(self):
         from scipy import optimize
