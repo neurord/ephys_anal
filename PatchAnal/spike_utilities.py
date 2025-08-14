@@ -38,6 +38,7 @@ def rectification(traces,inject, inj_start,inj_end,window):
 def find_notebook_file(files, exper):
     file_found=False
     i=0
+    findex=-1
     while not file_found and i<len(files):
         with open(files[i],'r') as myfile: #loop over all files
             all_lines=myfile.readlines()    #read in the text
