@@ -33,7 +33,7 @@ class PatchAnal():
         self.plotstart=params.plotstart 
         self.slope_std_factor=params.slope_std
         self.ss_dur=params.ss_dur
-        self.PSPstart=params.PSPstart #Extracted from notebook file if one exists
+        self.PSPstart=params.PSPstart+params.decay #Extracted from notebook file if one exists
         self.basestart=params.basestart
         self.base_dur=params.base_dur
         self.window=params.window #filter window for finding peak PSP
@@ -131,6 +131,7 @@ class PatchAnal():
         self.theta_in_notebook=False
         if len(files):
             findex,file_found=su.find_notebook_file(files,self.experiment)
+
         else:
             file_found=False
         if file_found: 
@@ -180,7 +181,7 @@ class PatchAnal():
                             self.sweep_time[series].append(t[0]) #Timer_time
                         PSPstart=parse_measures(full_line,MEASURES[1]) #find Segment start time - when digital stimulation applied - may be 0, 1 or two values
                         if len(PSPstart)==0:
-                            PSPstart_dict[series]=self.PSPstart  #if not found (PSPstart=[]) then use default value
+                            PSPstart_dict[series]=self.PSPstart  #if not found (PSPstart=[]) then use default value 
                         elif len(PSPstart)==1:
                             PSPstart_dict[series]=PSPstart[0] + self.artifact_decay #save single value
                         else:  
@@ -192,7 +193,7 @@ class PatchAnal():
                 if series.startswith('R1_'):
                     self.breakin_time=self.sweep_time[series][0] #approximate breakin time as Timer_Time of 1st sweep of 1st routine - actual breakin is smaller than this
                     #### if timer reset is in log, then can define self.breakin_time as 0
-            self.PSPstart=PSPstart_dict #once PSPstart for all routines is found, can overright the default/argParser value
+            self.PSPstart=PSPstart_dict #once PSPstart for all routines is found, can override the default/argParser value
         else:
             print('Notebook file not found using pattern:',nfname)
 
@@ -335,11 +336,14 @@ class PatchAnal():
     def analyze_theta(self):  #extract time of theta - to calculate time to induction
         def induct_params(routine_name):
             #determine burst freq, induct_freq and train_interval 
-            if isinstance(self.PSPstart[routine_name],list):
-                burst_interval= np.mean(np.diff(self.PSPstart[routine_name])) #20 ms for Theta, nan for 20 Hz
-                self.params['induction']['burst_interval']=burst_interval
+            if isinstance(self.PSPstart,dict):
+                if isinstance(self.PSPstart[routine_name],list):
+                    burst_interval= np.mean(np.diff(self.PSPstart[routine_name])) #20 ms for Theta, nan for 20 Hz
+                    self.params['induction']['burst_interval']=burst_interval
+                else:
+                    self.params['induction']['burst_interval']=np.nan
             else:
-                self.params['induction']['burst_interval']=np.nan
+                self.params['induction']['burst_interval']=np.nan #unknown
             self.params['induction']['induct_interval']=self.params['Stim_interval'][routine_name] # 95 ms or 1/20 Hz for LTD
             #The following is kluge.  Don't want to specify routine name (e.g. ThetaBurst), cuz don't know name of 20Hz or other possible induction protocols
             #So, instead exclude specific, non-induction protocols.  Will be problematic if someone adds a protocol
@@ -353,14 +357,20 @@ class PatchAnal():
                 print('******* Unable to determine train interval - fix "routine_times=" in "analyze_theta" !!!!!!!!!!!!!!!!')
             return #not needed
 
-        def ISI_anal(AP_times, routine_name):
-            #if there is no burst frequency, just use time of single stim
+        def find_stim_times(routine_name):
             adjust=-self.artifact_decay#self.min_risetime-self.artifact_decay #artifact decay is too long for labeling stim time, to show it occurs prior to AP
-            if len(self.PSPstart[routine_name])>1:  #Might need to use isinstance instead of length
-                #FIXME: APs seem to occur immediately after stim, or sometimes ~4 ms later
-                stim_time=np.array([self.PSPstart[routine_name][0]+adjust+i*np.mean(np.diff(self.PSPstart[routine_name])) for i in range(stim_per_burst)])
+            if isinstance(self.PSPstart,dict):
+                if isinstance(self.PSPstart[routine_name],list):  #Might need to use isinstance instead of length
+                    #FIXME: APs seem to occur immediately after stim, or sometimes ~4 ms later
+                    stim_time=np.array([self.PSPstart[routine_name][0]+adjust+i*np.mean(np.diff(self.PSPstart[routine_name])) for i in range(stim_per_burst)])
+                else:
+                    stim_time=np.array(self.PSPstart[routine_name])
             else:
-                stim_time=np.array(self.PSPstart[routine_name])
+                stim_time=[0.015,0.035,0.055,0.075] #FIXME: make this parameter in ArgParser, or make this empty list?
+            return stim_time
+        
+        def ISI_anal(AP_times, stim_time):
+            #if there is no burst frequency, just use time of single stim
             for pt in AP_times: #for each spike)
                 delta=pt-stim_time #positive delta means spiketime AFTER psp - forward pairing
                 minloc=np.abs(delta).argmin()
@@ -370,7 +380,7 @@ class PatchAnal():
                         self.other_interval.append(delta[minloc+1]) #AP closest to previous stim. oher interval time from AP to next stim
                     else:
                         self.other_interval.append(delta[minloc-1]) #AP closest to next stim. other interval time from AP to previous stim
-            return stim_time
+            return
 
         self.num_spikes={r:{} for r in self.induct_dict.keys() if HEADSTAGE_V[self.induct_headstage] in r} #will create separate recarrays for spikes in each burst
         self.spikes={r:{} for r in self.num_spikes.keys()}
@@ -381,6 +391,7 @@ class PatchAnal():
             self.induct_dt=self.get_dt(self.induct_dict[r])
             self.induction_time.append(self.get_routine_start(r)[0]) #use to calculate time from break-in to induction
             routine_start,routine_name=self.get_routine_start(r)
+            stim_time=find_stim_times(routine_name) #should be the same for each routine
             if len(timepoints): #determine value of current injection during theta
                 Vtimepoints,factor=self.Itime_to_Vtime(timepoints,self.induct_dt,r)
                 self.depol_startpt=Vtimepoints[0]+factor #make sure AFTER current onset 
@@ -402,10 +413,9 @@ class PatchAnal():
                     num_peaks=0
                     peak_times=[]
                 self.num_spikes[r][num]=num_peaks #num spikes within burst
-                if len(peak_times):
-                    stim_time=ISI_anal(peak_times,routine_name) #should be the same for each routine
-                else:
-                    stim_time=[]
+                if len(peak_times) and len(stim_time): 
+                    ISI_anal(peak_times,stim_time) 
+
         induct_params(routine_name)
         if self.theta_in_notebook:
             print('timer time available for induction')
@@ -535,7 +545,7 @@ class PatchAnal():
             self.Iaccess=inject[0]-np.mean(inject[timepoints[-2]:timepoints[-1]],axis=0) #use timepoints from current
             self.anal_params['hyperstart']=self.hyperstart
             self.params['Iaccess']=self.Iaccess[0]
-            print('V onset: {:g} and {:.5f} s, V offset: {:g} , inject {:.1f} pA'.format(Vtimepoints[-2],self.hyperstart, self.hyper_endpt,self.Iaccess[0]*1e12))
+            print('Access Monitor: V onset: {:g} and {:.5f} s, V offset: {:g} , inject {:.1f} pA'.format(Vtimepoints[-2],self.hyperstart, self.hyper_endpt,self.Iaccess[0]*1e12))
             
         if len(self.induction_time):
             induct_time=self.induction_time[0]
@@ -598,7 +608,10 @@ class PatchAnal():
                     print('samples in IO range,',len(self.IOrange), ', does not match number of IO traces, ',IOtraces, ', truncating IOrange to', self.IOrange[0:IOtraces])
                     self.IOrange=self.IOrange[0:IOtraces]
                     self.IOamp[headstage]=np.zeros(IOtraces)
-                stim_start=int(self.PSPstart[routine_name]/dt)
+                if isinstance(self.PSPstart,dict):
+                    stim_start=int(self.PSPstart[routine_name]/dt)
+                else:
+                    stim_start=int(0.20/dt) #FIXME: make parameter in ArgParser, 0.203?
                 #### plotting part ####
                 basestartpt=stim_start-int(self.basestart/dt)  #basestart is duration prior to event 
                 base_endpt=basestartpt+int(self.base_dur/dt)
@@ -620,14 +633,19 @@ class PatchAnal():
             axes[0].set_title ('IO curve')
             axes[0].legend()  
      
-    def normalize(self):
+    def normalize(self,baseline_time=None):
         from scipy import optimize
         self.meanpre={}
         self.Aopt={};self.Bopt={}; self.Bstd={}
         self.num_pre=np.shape(self.data['Data'][self.pre_trace].__array__())[-1]
+        if baseline_time:
+            pre_length=int((baseline_time*60)/self.Stim_interval) #convert from minutes to seconds to samples
+            pre_start=max(0,self.num_pre-pre_length) #cannot be negative
+        else:
+            pre_start=0
         for headstage in self.pspamp.keys():
-            pretrace=self.pspamp[headstage][0:self.num_pre]
-            pretime=self.psptime[headstage][0:self.num_pre]
+            pretrace=self.pspamp[headstage][pre_start:self.num_pre]
+            pretime=self.psptime[headstage][pre_start:self.num_pre]
             self.meanpre[headstage]=pretrace[~np.isnan(pretrace)].mean()
             self.normpsp[headstage]=self.pspamp[headstage]/self.meanpre[headstage]
             #normRMP or normRaccess? 
@@ -670,7 +688,7 @@ if __name__=='__main__':
     exp.init_arrays()
     exp.IV_IF_anal()
     exp.calc_psp()
-    exp.normalize()
+    exp.normalize(baseline_time=10) #Specify baseline_time in minutes if not entire baseline data
     if len(exp.induction_list):
         stim_time=exp.analyze_theta()
     exp.IO_curve()
