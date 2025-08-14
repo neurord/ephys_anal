@@ -16,10 +16,10 @@ def ArgParserPatch(commandline,do_exit,flag=0):
     #parser.add_argument("-bathtemp", type=str, choices=["heat","RT"],help="heat or RT", default='RT')
     #parser.add_argument("-Rtip", type=float,help="pipette tip resistance") #Read from logfile
     parser.add_argument("-ID", type=str, help="animal ID") #READ FROM NOTEBOOK file 
-    parser.add_argument("-sex", type=str, help="sex/estrus/pellet, e.g. M, F, FE, OVX, OVX+E2") #READ FROM NOTEBOOK file 
-    parser.add_argument("-age", type=int, help="animal age in days") #READ FROM NOTEBOOK file 
-    parser.add_argument("-drug", type=str, choices=["nodrug","G1","G15","MPP","PTP"],help="ctrl, G1, G15, MPP", default='ctrl') #READ FROM NOTEBOOK file
-    parser.add_argument("-region", type=str, choices=["DM", "DL"], help="which striatal region", default="DM") # READ FROM NOTEBOOK file
+    parser.add_argument("-sex", type=str, help="sex/estrus/pellet, e.g. M, F, FE, OVX, OVX+E2") #READ FROM NOTEBOOK file for PatchAnal, no default for GrpAvgPatchClass 
+    parser.add_argument("-age", type=int, help="animal age in days") #READ FROM NOTEBOOK file  for PatchAnal, no default for GrpAvgPatchClass 
+    parser.add_argument("-drug", type=str,help="bath solution") #READ FROM NOTEBOOK file for PatchAnal, no default for GrpAvgPatchClass 
+    parser.add_argument("-region", type=str, choices=["DMS", "DLS"], help="which striatal region") # READ FROM NOTEBOOK file for PatchAnal, no default for GrpAvgPatchClass 
     parser.add_argument("-genotype", type=str, choices=["tdTomato", "wt"],help="tdTomato or wt", default='tdTomato') #eventually read from metadata
     parser.add_argument('-slope_std', type = int, default = 2, help="baseline slope_std_factor criteria (default: 2)")
     parser.add_argument('-window', type=int, help='number of points to average for peak Vm', default=5) #also used for time samples
@@ -54,9 +54,9 @@ def ArgParserPatch(commandline,do_exit,flag=0):
     #parameters only used in GrpAvg
     if flag:
         parser.add_argument('IDfile', type=str)
-        parser.add_argument("-samp_time", nargs="+",default=[20,30],) 
+        parser.add_argument("-samp_time", nargs="+",default=[20,30]) 
         parser.add_argument('-plot_ctrl',type=str,default='100', help='1st bit: show plots, 2nd bit: #columns in figure, 3rd bit: plot correlations') 
-        parser.add_argument("-sepvarlist", nargs="+",default=['sex','region'],help='list of separation variables for grouping data')
+        parser.add_argument("-sepvarlist", nargs="+",default=['Status','celltype'],help='list of separation variables for grouping data')
         parser.add_argument("-induction", type=str ,help="induction frequency, e.g. 20 Hz or 10.5 Hz") 
 
     try:
