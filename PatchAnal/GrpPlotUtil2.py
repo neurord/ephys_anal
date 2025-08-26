@@ -116,7 +116,7 @@ def plot_corr(grp,xvar,yvar,samp=1):
     fig.canvas.draw()
     pyplot.show()
 
-def plot_IVIF(grp,yvars): 
+def plot_IVIF_mean(grp,yvars): 
     import scipy.stats
     fig,axes=pyplot.subplots(len(yvars),1)
     axes=fig.axes
@@ -136,6 +136,30 @@ def plot_IVIF(grp,yvars):
         axis.legend(fontsize=10, loc='best')
     fig.canvas.draw()
     pyplot.show()
+
+def plot_IVIF(grp,yvars): 
+    figs=[]
+    plot_variables=[a for a in grp.IVIF_variables if a != 'Im']
+    for fnum,yvar in enumerate(plot_variables):
+        fig,axes=pyplot.subplots(len(grp.grp_data.groups.keys()),1)
+        figs.append(fig)
+        axes=fig.axes
+        fig.suptitle(yvar+' vs '+'current')
+        fig.canvas.manager.set_window_title('IV_IF separate'+str(fnum))
+        for ax,group in enumerate(grp.grp_data.groups.keys()):
+            labl=group_to_word(group)
+            for ii in grp.grp_data.get_group(group).index:
+                yvalues=grp.grp_data.get_group(group)[yvar][ii]
+                xvals=grp.grp_data.get_group(group).Im[ii]*1e12 #Current
+                print ("group:", group)
+                axes[ax].plot(xvals,yvalues,label=grp.grp_data.get_group(group)['exper'][ii])
+                axes[ax].set_ylabel(yvar+' '+labl)
+                axes[ax].set_xlabel('Im (pA)')
+        for axis in axes:
+                axis.legend(fontsize=10, loc='best')
+        fig.canvas.draw()
+        pyplot.show()
+    return figs
 
 def group_to_word(grp):
     if isinstance(grp,tuple) or isinstance(grp,list):
@@ -160,7 +184,7 @@ def read_IDfile(grp,IDfield,indep_var):
         for each_dict in my_reader:  #each line is a dictionary
             if each_dict[IDfield]: #if ID field is not blank
                 for iv in indep_var: #vars()[id] is the dictinary name
-                    vars()[iv]['JK-'+each_dict[IDfield]]=each_dict[iv] #add to dictionary
+                    vars()[iv][each_dict[IDfield]]=each_dict[iv] #add to dictionary
         for iv in indep_var:
             grp.whole_df[iv] = grp.whole_df['ID'].map(vars()[iv])
     print(grp.whole_df[print_vars])
