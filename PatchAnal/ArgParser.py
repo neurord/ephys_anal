@@ -21,7 +21,7 @@ def ArgParserPatch(commandline,do_exit,flag=0):
     parser.add_argument("-drug", type=str,help="bath solution") #READ FROM NOTEBOOK file for PatchAnal, no default for GrpAvgPatchClass 
     parser.add_argument("-region", type=str, choices=["DMS", "DLS"], help="which striatal region") # READ FROM NOTEBOOK file for PatchAnal, no default for GrpAvgPatchClass 
     parser.add_argument("-genotype", type=str, choices=["tdTomato", "wt"],help="tdTomato or wt", default='tdTomato') #eventually read from metadata
-    parser.add_argument('-slope_std', type = int, default = 2, help="baseline slope_std_factor criteria (default: 2)")
+    parser.add_argument('-slope_std', type = float, default = 2.5, help="baseline slope_std_factor criteria (default: 2)")
     parser.add_argument('-window', type=int, help='number of points to average for peak Vm', default=5) #also used for time samples
     #next set refers to the IV, IF curves and the chirp - likely these are not needed as can be read from the hdf5 file
     #parser.add_argument('-chirp', nargs= '+', default=[4,5], help='series number for chirps')
@@ -55,9 +55,10 @@ def ArgParserPatch(commandline,do_exit,flag=0):
     if flag:
         parser.add_argument('IDfile', type=str)
         parser.add_argument("-samp_time", nargs="+",default=[20,30]) 
-        parser.add_argument('-plot_ctrl',type=str,default='100', help='1st bit: show plots, 2nd bit: #columns in figure, 3rd bit: plot correlations') 
+        parser.add_argument('-plot_ctrl',type=str,default='110', help='1st bit: show plots, 2nd bit: #columns in figure, 3rd bit: plot correlations') 
         parser.add_argument("-sepvarlist", nargs="+",default=['Status','celltype'],help='list of separation variables for grouping data')
         parser.add_argument("-induction", type=str ,help="induction frequency, e.g. 20 Hz or 10.5 Hz") 
+        parser.add_argument("-maxage", type=int, help="maximum animal age to include in analysis") 
 
     try:
         args = parser.parse_args(commandline) # maps arguments (commandline) to choices, and checks for validity of choices.
