@@ -15,6 +15,8 @@ import ArgParser as argp
 import PatchAnalPlots as pu
 import GrpPlotUtil2 as grp_utl
 import datetime
+from PatchAnalPlots import line
+from scipy import optimize
 
 SEC_PER_MIN=60 #global
 SYN_ROUTINE='Synaptic_StimDigCC'
@@ -32,7 +34,7 @@ class GrpPatch:
         self.plot_corr=int(params.plot_ctrl[2]) #to plot correlation between LTP and age or baseline epsp
         #additional parameters.  FIXME: add to arg parser
         self.minimum_sweeps=10#20 #5 min pre and 15 min follow-up
-        self.slope_threshold=1e-5
+        self.slope_threshold=2e-5 #fraction of change per sec.  Same as .0012 /minute or .036 in 30 min.
         self.nan_threshold=10 
         self.baseline_min=0#0.4
         self.baseline_max=2
@@ -65,7 +67,7 @@ class GrpPatch:
                 exper_param=datadict['params'].item()
                 if exper_param['exper']=='250812_2':
                     exper_param['ID']='250530-B7-F2L' #not 250529-B9-F2L, wrong aimal ID entered in metadata during experiment
-                ##calculate time since surgery (females only), and age if necessary
+                ## calculate time since surgery (females only), and age if necessary
                 exper_date=self.dates(exper_param['exper'],'_')
                 if exper_param['SxDate']: #no surgery date for males:
                     sx_date=self.dates(exper_param['SxDate'],'')
@@ -85,29 +87,53 @@ class GrpPatch:
             ############ Select subset of files based on user specified criteria ##########  FIXME: won't work on sex since being read from ID file after this
             ignore = ((self.params.sex and self.params.sex != exper_param['sex']) or 
                           (self.params.age is not None and self.params.age >= exper_param['age']) or
-                          #(self.params.maxage is not None and self.params.maxage <= exper_param['age']) or
+                          (self.params.maxage is not None and self.params.maxage <= exper_param['age']) or
                           (self.params.drug and self.params.drug != exper_param['drug']) or
                           (self.params.region and self.params.region != exper_param['region']))# or
                           #(self.params.induction and self.params.induction !=exper_param['induction']['induct_freq']))
             ########## identify experiments that do not meet includsion criteria ##########
             for hs in celltype.keys():
                 numnan=sum(np.isnan(traces['normPSP'][hs]))
+                cell_param=self.extract_params(exper_param,hs,data)
+                celltrace,induct_index,induct_index_avg=self.average_samples(traces,hs,exper_param['Stim_interval'])
+                celltrace['PSPsamples']=self.summary_measure(celltrace,cell_param)
+                #### Re-do slope to get intercept - not stored in .npz file. start slope at 10 min
+                Aopt,Bopt,Bstd=self.new_slope(traces['amp'][hs],traces['psptime'][hs],10,induct_index)
+                cell_param['Intercept']=Aopt
+                #### Recalculate slope using entire baseline
+                Aopt,Bopt,Bstd=self.new_slope(traces['amp'][hs],traces['psptime'][hs],0,induct_index)
+                cell_param['slope10']=Bopt;cell_param['slope10_std']=Bstd;cell_param['Intercept10']=Aopt
                 exclude = ((len(traces['normPSP'][hs])<self.minimum_sweeps) or
                                 (np.abs(data['slope'][hs])>self.slope_threshold) or
                                 (np.abs(data['slope'][hs])-self.slope_std_factor*data['slope_std'][hs]>0) or
+                                #### Use slope determined from normPSP averaged over 1 minute
+                                #(np.abs(cell_param['slope10'])>self.slope_threshold) or
+                                #(np.abs(cell_param['slope10'])-self.slope_std_factor*cell_param['slope10_std']>0) or
                                 numnan>self.nan_threshold or #do not use trace if too many missing popspikes
                                 np.mean(data['meanpre'][hs])<self.baseline_min) #do not use if baseline psp is too small
+                #If slope using all 10 minutes is bad, check the 5 min slope
+                '''if (np.abs(cell_param['slope10'])>self.slope_threshold) or \
+                        (np.abs(cell_param['slope10'])-self.slope_std_factor*cell_param['slope10_std']>0):
+                    if (np.abs(data['slope'][hs])>self.slope_threshold) or \
+                                (np.abs(data['slope'][hs])-self.slope_std_factor*data['slope_std'][hs]>0):
+                        exclude=True'''
                 if exclude and not ignore:
                     if len(traces['normPSP'][hs])<self.minimum_sweeps:
                         print ("!!!NOT ENOUGH goodtraces", exper_param['exper'], hs, len(traces['normPSP'][hs]))
-                    elif np.abs(data['slope'][hs])>self.slope_threshold or (np.abs(data['slope'][hs])-self.slope_std_factor*data['slope_std'][hs]>0):
-                        print ("!!!BAD baseline", exper_param['exper'],  hs, "slope u,s", round(data['slope'][hs],7),round(data['slope_std'][hs],7))
                     elif data['meanpre'][hs]<self.baseline_min:
                         print ("!!!PSP amp too low", data['meanpre'][hs])
-                    else:
+                    elif numnan>self.nan_threshold:
                         print('!!! Too many Nans',exper_param['exper'], hs, numnan)
-                    self.BAD[exper_param['exper']+'_'+hs]={'normPSP':traces['normPSP'][hs],'psptime':traces['psptime'][hs],'slope':data['slope'][hs],'slope_std':data['slope_std'][hs],
-                                                        'params':{'celltype':celltype[hs],'age':exper_param['age'],'drug':exper_param['drug'],'region':exper_param['region']}}
+                    elif np.abs(cell_param['slope'])>self.slope_threshold or (np.abs(cell_param['slope'])-self.slope_std_factor*cell_param['slope_std']>0):
+                        print ("!!! BAD 5 min baseline", "5 min slope u,s", round(cell_param['slope'],7),round(cell_param['slope_std'],7))
+                        if np.abs(cell_param['slope10'])>self.slope_threshold or (np.abs(cell_param['slope10'])-self.slope_std_factor*cell_param['slope10_std']>0):
+                            print ("BAD 10 min baseline also", exper_param['exper'],  hs, "10 min slope u,s", round(cell_param['slope10'],7),round(cell_param['slope10_std'],7))
+                        else:
+                                print(" 10 min baseline is OK", round(cell_param['slope10'],7),round(cell_param['slope10_std'],7))
+                    self.BAD[exper_param['exper']+'_'+hs]={'normPSP':celltrace['normPSP'],'psptime':celltrace['psptime'], 'meanpre':data['meanpre'][hs],
+                                                        'params':{'celltype':celltype[hs],'age':exper_param['age'],'drug':exper_param['drug'],'region':exper_param['region']},
+                                                        'slope':cell_param['slope'],'slope_std':cell_param['slope_std'], 'Intercept':cell_param['Intercept'],
+                                                        'slope10':Bopt,'slope10_std':Bstd,'Intercept10':Aopt}
                     #Exclude is True if not enough sweeps or otherwise bad data.  Ignore is true if not the subset of data desired
                     if self.print_info:
                         print ("***** excluding:", exper_param['exper']+'_'+hs)
@@ -121,10 +147,7 @@ class GrpPatch:
                         print ("########## np.nan detected", numnan,'times in',exper_param['exper']+'_'+hs)
                     if traces['normPSP'][hs][-1]==0.0: #last popspike is 0, why????
                         print ("@@@@@@@@@ check PatchAnal for", exper_param['exper']+'_'+hs)
-                    cell_param=self.extract_params(exper_param,hs,data)
                     PARAMS.append(cell_param)
-                    celltrace=self.average_samples(traces,hs,exper_param['Stim_interval'])
-                    celltrace['PSPsamples']=self.summary_measure(celltrace,cell_param)
                     DATAS.append(celltrace)                    
                     IVIFset.append(self.IVIFdata(IV_IF,hs,cell_param))
         
@@ -135,6 +158,15 @@ class GrpPatch:
         self.single_params.append('celltype')
         self.single_params.remove('pre_num')
 
+    def new_slope(self,normPSP,time,starti,induct_index):
+        pre_traces=normPSP[starti:induct_index]
+        pre_time=time[starti:induct_index]
+        no_nan_indices=~np.isnan(pre_traces)
+        popt,pcov=optimize.curve_fit(line,pre_time[no_nan_indices],pre_traces[no_nan_indices])
+        Aopt,Bopt=popt
+        Astd,Bstd=np.sqrt(np.diag(pcov))  
+        return Aopt,Bopt,Bstd
+    
     def average_samples(self, traces, hs,stim_interval):
         time_samples={key:[] for key in traces.keys()}
         if isinstance(stim_interval,dict):
@@ -143,10 +175,20 @@ class GrpPatch:
         else:
             interval=stim_interval
         tracesPerMinute=int(SEC_PER_MIN/interval)
+        calc_interval=np.diff(traces['psptime'][hs])
+        induction_index=np.where(calc_interval>1.1*interval)[0][0]+1
+        if induction_index%tracesPerMinute !=0:
+            print ('**********baseline traces stopped without completing the minute - average will skip next samples - PROBLEM - fix code')
+            #e.g. for samp in range(0,induction_index,tracesPerMinute)
+            #THEN, for samp in range(induction_index,len(tr[hs]),tracesPerMinute)
+        #DO NOT AVERAGE ACROSS INDUCTION INDEX
         for k, tr in traces.items():
             for samp in range(0,len(tr[hs]),tracesPerMinute):
-                time_samples[k].append(np.nanmean(tr[hs][samp:(samp+1)*tracesPerMinute]))
-        return {k:np.array(v) for k,v in time_samples.items()}
+                if samp<induction_index and samp+tracesPerMinute>induction_index:
+                    time_samples[k].append(np.nanmean(tr[hs][samp:induction_index]))                    
+                else:
+                    time_samples[k].append(np.nanmean(tr[hs][samp:samp+tracesPerMinute]))
+        return {k:np.array(v) for k,v in time_samples.items()}, induction_index, int(induction_index/tracesPerMinute)
 
     def IVIFdata(self,IVIF,hs,params):
         IVIF_data={}
@@ -247,14 +289,18 @@ class GrpPatch:
                     axes[1].plot(time[nan_index],np.ones((len(nan_index))),'o', color=color)
                 elif np.abs(bad_data['slope'])>self.slope_threshold or (np.abs(bad_data['slope'])-self.slope_std_factor*bad_data['slope_std']>0):
                     print("bad baseline", exper, "slope",round( bad_data['slope'],7), "+/-", round(bad_data['slope_std'],7))
-                    axes[0].plot(time,bad_data['normPSP'],'-', label=exper)
+                    p=axes[0].plot(time,bad_data['normPSP'],'-', label=exper)
+                    color = p[-1].get_color()
+                    axes[0].plot(time,bad_data['Intercept']/bad_data['meanpre']+bad_data['slope']*(SEC_PER_MIN/bad_data['meanpre'])*time,linestyle=':', color=color)
+                    axes[0].plot(time,bad_data['Intercept10']/bad_data['meanpre']+bad_data['slope10']*(SEC_PER_MIN/bad_data['meanpre'])*time,linestyle='-.', color=color)
                 else:
-                    print("PSP amp too low or insufficient traces", exper,'numnan=',sum(np.isnan(bad_data['normPSP'])))
-                    axes[0].plot(time,bad_data['normPSP'],'--', label=exper)
+                    print("PSP amp too low or insufficient traces", exper,'numnan=',sum(np.isnan(bad_data['normPSP']),'psp amp=', bad_data['meanpre']))
+                    p=axes[0].plot(time,bad_data['normPSP'],'--', label=exper)
                 if bad_data['normPSP'][-1]==0.0:
                         print ("@@@@@@@@@ normPSP is 0, check PatchAnal for", exper)
                     #print 'OK: {}'.format(exper_param)
-                print(bad_data['params'])       
+                print(bad_data['params'])
+            axes[0].set_title('dotted: 5 min slope, dot-dash: 10 min slope')       
             axes[0].legend(fontsize=8, loc='best')
             axes[1].legend(fontsize=8, loc='best')
             fig.canvas.draw()
@@ -383,8 +429,6 @@ if __name__ =='__main__':
             grp_utl.plot_IVIF(grp,grp.IVIF_variables)
     #
     ########## NEXT STEPS: ################
-    # re-calculate slope
-    # plot baseline slope for bad data - extend line to 40 min.
     # 1. IV_IF - how to plot and output mean, when Im is not the same for every sample?
     #       a. deliberate change in range of Im
     #       b. Small changes in actual recorded Im
