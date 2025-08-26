@@ -14,8 +14,10 @@ from matplotlib import pyplot
 import ArgParser as argp
 import PatchAnalPlots as pu
 import GrpPlotUtil2 as grp_utl
+import datetime
 
 SEC_PER_MIN=60 #global
+SYN_ROUTINE='Synaptic_StimDigCC'
 
 class GrpPatch:
     def __init__(self, params): 
@@ -30,7 +32,7 @@ class GrpPatch:
         self.plot_corr=int(params.plot_ctrl[2]) #to plot correlation between LTP and age or baseline epsp
         #additional parameters.  FIXME: add to arg parser
         self.minimum_sweeps=10#20 #5 min pre and 15 min follow-up
-        self.slope_threshold=0.01
+        self.slope_threshold=1e-5
         self.nan_threshold=10 
         self.baseline_min=0#0.4
         self.baseline_max=2
@@ -38,6 +40,17 @@ class GrpPatch:
         self.single_params=['region','genotype','age','drug','ID','time_to_induct','pre_num']
         self.fname_vars=['region','genotype','sex','drug']
         self.IVIF_variables=['Im','Vm','latency','num_spikes'] #also, APheight, APwidth, AHP_amp, AHP_time
+
+    def dates(self,datestring,separator):
+        if separator:
+            date=datestring.split(separator)[0]
+        else:
+            date=datestring
+        y=int('20'+date[0:2])
+        m=int(date[2:4])
+        d=int(date[4:6])
+        newdate=datetime.date(y,m,d)
+        return newdate
 
     def read_data(self): 
         self.BAD = {}
@@ -50,6 +63,18 @@ class GrpPatch:
                 datadict = np.load(f,allow_pickle=True)
                 data=datadict['data'].item()
                 exper_param=datadict['params'].item()
+                if exper_param['exper']=='250812_2':
+                    exper_param['ID']='250530-B7-F2L' #not 250529-B9-F2L, wrong aimal ID entered in metadata during experiment
+                ##calculate time since surgery (females only), and age if necessary
+                exper_date=self.dates(exper_param['exper'],'_')
+                if exper_param['SxDate']: #no surgery date for males:
+                    sx_date=self.dates(exper_param['SxDate'],'')
+                    exper_param['sx_time']=(exper_date-sx_date).days
+                else:
+                    exper_param['sx_time']=np.nan #FIXME: might need to use something else to make correlation plots work
+                if exper_param['age'] is None:
+                    birth_date=self.dates(exper_param['ID'],'-')
+                    exper_param['age']=(exper_date-birth_date).days                
                 traces=datadict['trace'].item()
                 IV_IF=datadict['IV_IF'].item()
                 anal_params=datadict['anal_params'].item() #use if need to re-analyze experiment
@@ -57,7 +82,7 @@ class GrpPatch:
                 print_params={k:v for k,v in exper_param.items() if not isinstance(v,dict) or k=='celltype'}
             if self.print_info and 'slope' in data.keys():
                 print ("file read:", print_params,", baseline slope=", [round(sl,6) for sl in data['slope'].values()])
-            ############ Select subset of files based on user specified criteria ##########
+            ############ Select subset of files based on user specified criteria ##########  FIXME: won't work on sex since being read from ID file after this
             ignore = ((self.params.sex and self.params.sex != exper_param['sex']) or 
                           (self.params.age is not None and self.params.age >= exper_param['age']) or
                           #(self.params.maxage is not None and self.params.maxage <= exper_param['age']) or
@@ -76,7 +101,7 @@ class GrpPatch:
                     if len(traces['normPSP'][hs])<self.minimum_sweeps:
                         print ("!!!NOT ENOUGH goodtraces", exper_param['exper'], hs, len(traces['normPSP'][hs]))
                     elif np.abs(data['slope'][hs])>self.slope_threshold or (np.abs(data['slope'][hs])-self.slope_std_factor*data['slope_std'][hs]>0):
-                        print ("!!!BAD baseline", exper_param['exper'],  hs, "slope u,s", round(data['slope'][hs],6),round(data['slope_std'][hs],6))
+                        print ("!!!BAD baseline", exper_param['exper'],  hs, "slope u,s", round(data['slope'][hs],7),round(data['slope_std'][hs],7))
                     elif data['meanpre'][hs]<self.baseline_min:
                         print ("!!!PSP amp too low", data['meanpre'][hs])
                     else:
@@ -98,7 +123,7 @@ class GrpPatch:
                         print ("@@@@@@@@@ check PatchAnal for", exper_param['exper']+'_'+hs)
                     cell_param=self.extract_params(exper_param,hs,data)
                     PARAMS.append(cell_param)
-                    celltrace={k:val[hs] for k,val in traces.items()}
+                    celltrace=self.average_samples(traces,hs,exper_param['Stim_interval'])
                     celltrace['PSPsamples']=self.summary_measure(celltrace,cell_param)
                     DATAS.append(celltrace)                    
                     IVIFset.append(self.IVIFdata(IV_IF,hs,cell_param))
@@ -109,6 +134,19 @@ class GrpPatch:
         self.whole_df=pd.concat([dfparams,dfdata,df_ivif], axis = 1)
         self.single_params.append('celltype')
         self.single_params.remove('pre_num')
+
+    def average_samples(self, traces, hs,stim_interval):
+        time_samples={key:[] for key in traces.keys()}
+        if isinstance(stim_interval,dict):
+            follow_up=[v for r,v in stim_interval.items() if SYN_ROUTINE in r]
+            interval=round(np.mean(follow_up))
+        else:
+            interval=stim_interval
+        tracesPerMinute=int(SEC_PER_MIN/interval)
+        for k, tr in traces.items():
+            for samp in range(0,len(tr[hs]),tracesPerMinute):
+                time_samples[k].append(np.nanmean(tr[hs][samp:(samp+1)*tracesPerMinute]))
+        return {k:np.array(v) for k,v in time_samples.items()}
 
     def IVIFdata(self,IVIF,hs,params):
         IVIF_data={}
@@ -124,6 +162,11 @@ class GrpPatch:
                     IFneeded=False #prevent multiple IF curves from pre-induction
                     for arr in self.IVIF_variables:
                         IVIF_data[arr]=np.hstack((IVIF_data[arr],vals[arr])) #this assumes that IV is first
+                IVIF_data['max_latency']=np.nanmax(IVIF_data['latency'])
+                if np.max(IVIF_data['num_spikes'])>0:
+                    IVIF_data['rheobase']=[v for v in params['rheobase'].values()][0]
+                else:
+                    IVIF_data['rheobase']=np.nan
         return IVIF_data
 
     def summary_measure(self,celltrace,param):
@@ -195,19 +238,19 @@ class GrpPatch:
             axes[1].set_xlabel('Time (min)')
             for exper,bad_data in self.BAD.items(): 
                 time=bad_data['psptime']/SEC_PER_MIN
-                if np.isnan(bad_data['normPSP']).any():
+                if sum(np.isnan(bad_data['normPSP']))>self.nan_threshold:
                     ### instead of plotting here, should put in separate container to plot later
                     print ("########## np.nan detected", exper)
                     p=axes[1].plot(time,bad_data['normPSP'],'+', label=exper)
                     color = p[-1].get_color()
                     nan_index=np.argwhere(np.isnan(bad_data['normPSP']))
                     axes[1].plot(time[nan_index],np.ones((len(nan_index))),'o', color=color)
-                elif bad_data['slope']>self.slope_threshold or (np.abs(bad_data['slope'])-self.slope_std_factor*bad_data['slope_std']>0):
-                    print("bad baseline", exper, "slope",round( bad_data['slope'],5), "+/-", round(bad_data['slopestd'],5))
-                    axes[0].plot(time,bad_data['normPSP'],'.', label=exper)
+                elif np.abs(bad_data['slope'])>self.slope_threshold or (np.abs(bad_data['slope'])-self.slope_std_factor*bad_data['slope_std']>0):
+                    print("bad baseline", exper, "slope",round( bad_data['slope'],7), "+/-", round(bad_data['slope_std'],7))
+                    axes[0].plot(time,bad_data['normPSP'],'-', label=exper)
                 else:
                     print("PSP amp too low or insufficient traces", exper,'numnan=',sum(np.isnan(bad_data['normPSP'])))
-                    axes[0].plot(time,bad_data['normPSP'],'x', label=exper)
+                    axes[0].plot(time,bad_data['normPSP'],'--', label=exper)
                 if bad_data['normPSP'][-1]==0.0:
                         print ("@@@@@@@@@ normPSP is 0, check PatchAnal for", exper)
                     #print 'OK: {}'.format(exper_param)
@@ -218,13 +261,13 @@ class GrpPatch:
 
     def write_stat_data(self):
         SASoutput = self.whole_df[self.single_params] #in to a 2d array you write it into SASoutput. 
-        SASheader= '   '.join(self.single_params)
+        SASheader= '   '.join(self.single_params) 
         SASoutput=np.column_stack((SASoutput,round(self.whole_df.meanpre,5)))
         for col in range(len(self.whole_df.PSPsamples[0])):
             pspmean=[round(row[col],5) for row in self.whole_df.PSPsamples]
             if not np.all([np.isnan(k) for k in pspmean]):
                 SASoutput=np.column_stack((SASoutput,pspmean))
-                SASheader += ' normPSP_'+str(self.sample_times[col])
+                SASheader += 'baseline normPSP_'+str(self.sample_times[col])
         f=open(self.subdir+"PARAMSforSAS.txt", 'w')
         f.write(SASheader +"\n")
         np.savetxt(f, SASoutput, fmt='%s', delimiter='   ')
@@ -271,6 +314,7 @@ class GrpPatch:
     def write_IVIF(self):
         import scipy.stats
         self.IVIF_variables.remove('Im')
+
         for gnum in self.grp_data.groups.keys():
             f=open(self.subdir+self.filenm[gnum]+"_IVIF.txt",'w') 
             outputdata=self.grp_data.get_group(gnum).Im.mean()*1e12 #Convert to pA for printing, np.mean(self.grp_data.get_group(gnum).Im.values,axis=0)
@@ -301,7 +345,7 @@ class GrpPatch:
         return filnm      
 
 if __name__ =='__main__':        
-    ARGS = "BlackwellMouseColony -sepvarlist celltype -plot_ctrl 111"      
+    ARGS = "Surgery_record -plot_ctrl 111"      
     exclude_name=[] #['theta'] #use to exclude variable(s) from column name in _points files	        
     try:
         commandline = ARGS.split() #in python: define space-separated ARGS string
@@ -332,23 +376,23 @@ if __name__ =='__main__':
         grp.write_traces() 
         grp.write_stat_data() 
         grp.bar_graph_data(exclude_name)
+        grp_utl.plot_IVIF(grp,grp.IVIF_variables)
         grp.write_IVIF() 
         if int(params.plot_ctrl[2]):
-            grp_utl.plot_corr(grp,['age'],'PSPsamples') ######### DEBUG
+            grp_utl.plot_corr(grp,['age'],'PSPsamples') ######### FIXME: DEBUG
             grp_utl.plot_IVIF(grp,grp.IVIF_variables)
     #
     ########## NEXT STEPS: ################
-    # Read in file to determine sex/pellet from ID 
-    # Surgery date - calculate time since surgery
-    #**** extract single rheobase and max_latency to use in corr plots?  should be only single value once valid experiments
-    # extract Number of spikes during induction to use in corr plots?  After saving in patch Anal
-    # Group IO data (after processing in patchAnal)
+    # re-calculate slope
+    # plot baseline slope for bad data - extend line to 40 min.
+    # 1. IV_IF - how to plot and output mean, when Im is not the same for every sample?
+    #       a. deliberate change in range of Im
+    #       b. Small changes in actual recorded Im
+    # 2.Group IO data (after processing in patchAnal)
+    #   similar issue as with IV_IF - different values used
+    # 3. extract Number of spikes during induction to use in corr plots?  After saving in patch Anal
     ### IF needed, can add back in newcolumn_name - to take care of drug concentration - from GrpAvgPopSpikeClass
-              
-                
-                
-                
-                
+
                 
                 
                 
