@@ -1,4 +1,5 @@
 import numpy as np
+np.set_printoptions(legacy='1.25')
 from matplotlib import pyplot
 from matplotlib import gridspec
 from scipy import optimize
@@ -101,7 +102,7 @@ def plot_corr(grp,xvar,yvar,samp=1):
             yvalues=[grp.grp_data.get_group(group)[yvar].values[i][samp] for i in range(len(grp.grp_data.get_group(group)))]
             xvals=grp.grp_data.get_group(group)[item].values #replace age with list of params?
             if np.isnan(yvalues).any() or len(yvalues)<3:
-                print ("group:", group,'Time:', xvals,'Y:', yvalues)
+                print ("plot_corr: Nans in yalues or <3 samples for group:", group,'X:', xvals,'Y:', yvalues)
                 labl=group_to_word(group)
             else:
                 popt,pcov=optimize.curve_fit(line,xvals,yvalues)
@@ -116,20 +117,22 @@ def plot_corr(grp,xvar,yvar,samp=1):
     fig.canvas.draw()
     pyplot.show()
 
-def plot_IVIF_mean(grp,yvars): 
-    import scipy.stats
-    fig,axes=pyplot.subplots(len(yvars),1)
+def plot_IVIF_mean(grp,ivif_dict): 
+    plot_vars=[a for a in grp.IVIF_variables if a != 'Im']
+    fig,axes=pyplot.subplots(len(plot_vars),1,sharex=True)
     axes=fig.axes
-    fig.suptitle(', '.join(yvars)+' vs '+'current')
+    fig.suptitle(', '.join(plot_vars)+' vs '+'current')
     fig.canvas.manager.set_window_title('IV_IF')
-    for ax,yvar in enumerate(yvars):
-        for group in grp.grp_data.groups.keys():
-            yvalues=np.nanmean(np.vstack(grp.grp_data.get_group(group)[yvar].values),axis=0)
-            ste=scipy.stats.sem(grp.grp_data.get_group(group)[yvar].values,axis=0,nan_policy='omit')
-            xvals=grp.grp_data.get_group(group).Im.mean() #Current
-            print ("group:", group,'Im:',xvals,'\nY:',yvalues)
-            labl=group_to_word(group)+' , n='+str(len(grp.grp_data.get_group(group)))
-            axes[ax].errorbar(xvals,yvalues,ste,label=labl)
+    for group in ivif_dict.keys():
+        xvals= ivif_dict[group]['Im']#Current
+        #print ("group:", group,'Im:',xvals)
+        for ax,yvar in enumerate(plot_vars):
+            yvalues=ivif_dict[group][yvar]
+            ste=ivif_dict[group][yvar+'_ste']
+            #print ('yvar',yvar,', Y:',yvalues)
+            labl=group_to_word(group)
+            axes[ax].errorbar(xvals,yvalues,ste,label=labl,marker='.',capsize=4) #linestyle='',
+            #axes[ax].plot(xvals,yvalues,label=labl)
             axes[ax].set_ylabel(yvar)
             axes[ax].set_xlabel('Im')
     for axis in axes:
@@ -151,7 +154,6 @@ def plot_IVIF(grp,yvars):
             for ii in grp.grp_data.get_group(group).index:
                 yvalues=grp.grp_data.get_group(group)[yvar][ii]
                 xvals=grp.grp_data.get_group(group).Im[ii]*1e12 #Current
-                print ("group:", group)
                 axes[ax].plot(xvals,yvalues,label=grp.grp_data.get_group(group)['exper'][ii])
                 axes[ax].set_ylabel(yvar+' '+labl)
                 axes[ax].set_xlabel('Im (pA)')
@@ -160,6 +162,53 @@ def plot_IVIF(grp,yvars):
         fig.canvas.draw()
         pyplot.show()
     return figs
+
+def form_clusters(xvars, eps):
+    all_xvals=[]
+    for i in xvars.index:
+        #create tuples: (Im, index)
+        all_xvals.append([(xv,i,j) for j,xv in enumerate(xvars[i])])
+    #flatten the list
+    all_xvals=[ax for one_set in all_xvals for ax in one_set]
+    #sort by xval
+    sorted_xvals=sorted(all_xvals)
+    clusters=[]
+    curr_cluster = [sorted_xvals[0]]
+    for curr_point,point in zip(sorted_xvals[0:-1],sorted_xvals[1:]):
+        if point[0] <= curr_point[0] + eps:
+            curr_cluster.append(point)
+        else:
+            clusters.append(curr_cluster)
+            curr_cluster = [point]
+    clusters.append(curr_cluster)
+    return clusters
+
+def cluster_IVIF (grp,eps=5):     #Use eps=5 or 10 pA
+    import scipy.stats
+    #use the index (second value of tuple) to guide the clustering.  Might need to add 2nd index of which inject it is
+    ivif_dict={a:{} for a in grp.grp_data.groups.keys()}
+    yvars=[a for a in grp.IVIF_variables if a != 'Im'] 
+    for group in grp.grp_data.groups.keys():
+        xvars=grp.grp_data.get_group(group)['Im']*1e12  #convert to pA
+        clusters=form_clusters(xvars,eps)
+        mean_x=[]
+        for clust in clusters:
+            mean_x.append(np.mean([c[0] for c in clust]))
+        ivif_dict[group]['Im']=mean_x
+        for yvar in yvars:
+            mean_y=[];ste_y=[]
+            yvalues=grp.grp_data.get_group(group)[yvar]
+            for clust in clusters:
+                mean_y.append(np.nanmean([yvalues[c[1]][c[2]] for c in clust]))
+                ste_y.append(scipy.stats.sem([yvalues[c[1]][c[2]] for c in clust],nan_policy='omit'))
+            ivif_dict[group][yvar]=mean_y
+            ivif_dict[group][yvar+'_ste']=ste_y
+    return ivif_dict
+            
+
+
+            
+
 
 def group_to_word(grp):
     if isinstance(grp,tuple) or isinstance(grp,list):

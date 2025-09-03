@@ -297,7 +297,7 @@ class GrpPatch:
                     print("PSP amp too low or insufficient traces", exper,'numnan=',sum(np.isnan(bad_data['normPSP']),'psp amp=', bad_data['meanpre']))
                     p=axes[0].plot(time,bad_data['normPSP'],'--', label=exper)
                 if bad_data['normPSP'][-1]==0.0:
-                        print ("@@@@@@@@@ normPSP is 0, check PatchAnal for", exper)
+                    print ("@@@@@@@@@ normPSP is 0, check PatchAnal for", exper)
                     #print 'OK: {}'.format(exper_param)
                 print(bad_data['params'])
             axes[0].set_title('dotted: 5 min slope, dot-dash: 10 min slope')       
@@ -357,19 +357,15 @@ class GrpPatch:
             np.savetxt(f,outputdata, fmt='%7.5f',delimiter='   ') #'%7.4f' = format is float with 7 characters, 4 after decimal
             f.close()
     
-    def write_IVIF(self):
-        import scipy.stats
-        self.IVIF_variables.remove('Im')
-
-        for gnum in self.grp_data.groups.keys():
-            f=open(self.subdir+self.filenm[gnum]+"_IVIF.txt",'w') 
-            outputdata=self.grp_data.get_group(gnum).Im.mean()*1e12 #Convert to pA for printing, np.mean(self.grp_data.get_group(gnum).Im.values,axis=0)
+    def write_IVIF(self, ivif_dict):
+        plot_vars=[a for a in self.IVIF_variables if a != 'Im']
+        for group in ivif_dict.keys():
+            f=open(self.subdir+self.filenm[group]+"_IVIF.txt",'w') 
             header='Im(pA)   '
-            for yvar in self.IVIF_variables:
-                #header=header+self.filenm[gnum]+yvar+'_avg   '+self.filenm[gnum]+yvar+'_sem  ' #longer name
-                header=header+gnum+yvar+'_avg   '+self.filenm[gnum]+yvar+'_sem  '
-                outputdata=np.column_stack((outputdata,np.nanmean(np.vstack(self.grp_data.get_group(gnum)[yvar].values),axis=0)))
-                outputdata=np.column_stack((outputdata,scipy.stats.sem(self.grp_data.get_group(gnum)[yvar].values,axis=0,nan_policy='omit')))
+            outputdata=ivif_dict[group]['Im']
+            for yvar in plot_vars:
+                header=header+self.filenm[group]+yvar+'_avg   '+self.filenm[group]+yvar+'_sem  '
+                outputdata=np.column_stack((outputdata,ivif_dict[group][yvar],ivif_dict[group][yvar+'_ste']))
             f.write(header+"\n")
             np.savetxt(f,outputdata, fmt='%7.5f',delimiter='   ') #'%7.4f' = format is float with 7 characters, 4 after decimal
             f.close()
@@ -422,18 +418,16 @@ if __name__ =='__main__':
         grp.write_traces() 
         grp.write_stat_data() 
         grp.bar_graph_data(exclude_name)
-        grp_utl.plot_IVIF(grp,grp.IVIF_variables)
-        grp.write_IVIF() 
+        ivif_dict=grp_utl.cluster_IVIF(grp)
+        grp.write_IVIF(ivif_dict) 
         if int(params.plot_ctrl[2]):
             grp_utl.plot_corr(grp,['age'],'PSPsamples') ######### FIXME: DEBUG
             grp_utl.plot_IVIF(grp,grp.IVIF_variables)
+            grp_utl.plot_IVIF_mean(grp,ivif_dict)
     #
     ########## NEXT STEPS: ################
-    # 1. IV_IF - how to plot and output mean, when Im is not the same for every sample?
-    #       a. deliberate change in range of Im
-    #       b. Small changes in actual recorded Im
     # 2.Group IO data (after processing in patchAnal)
-    #   similar issue as with IV_IF - different values used
+    #   
     # 3. extract Number of spikes during induction to use in corr plots?  After saving in patch Anal
     ### IF needed, can add back in newcolumn_name - to take care of drug concentration - from GrpAvgPopSpikeClass
 
