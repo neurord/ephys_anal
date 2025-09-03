@@ -163,11 +163,11 @@ def plot_IVIF(grp,yvars):
         pyplot.show()
     return figs
 
-def form_clusters(xvars, eps):
+def form_clusters(xvars, eps,conversion):
     all_xvals=[]
     for i in xvars.index:
         #create tuples: (Im, index)
-        all_xvals.append([(xv,i,j) for j,xv in enumerate(xvars[i])])
+        all_xvals.append([(xv*conversion,i,j) for j,xv in enumerate(xvars[i])])
     #flatten the list
     all_xvals=[ax for one_set in all_xvals for ax in one_set]
     #sort by xval
@@ -183,18 +183,17 @@ def form_clusters(xvars, eps):
     clusters.append(curr_cluster)
     return clusters
 
-def cluster_IVIF (grp,eps=5):     #Use eps=5 or 10 pA
+def cluster_IVIF (grp,x,yvars,eps=5,conversion=1):     #Use eps=5 or 10 pA
     import scipy.stats
     #use the index (second value of tuple) to guide the clustering.  Might need to add 2nd index of which inject it is
     ivif_dict={a:{} for a in grp.grp_data.groups.keys()}
-    yvars=[a for a in grp.IVIF_variables if a != 'Im'] 
     for group in grp.grp_data.groups.keys():
-        xvars=grp.grp_data.get_group(group)['Im']*1e12  #convert to pA
-        clusters=form_clusters(xvars,eps)
+        xvars=grp.grp_data.get_group(group)[x]
+        clusters=form_clusters(xvars,eps,conversion)
         mean_x=[]
         for clust in clusters:
             mean_x.append(np.mean([c[0] for c in clust]))
-        ivif_dict[group]['Im']=mean_x
+        ivif_dict[group][x]=mean_x
         for yvar in yvars:
             mean_y=[];ste_y=[]
             yvalues=grp.grp_data.get_group(group)[yvar]
@@ -203,12 +202,7 @@ def cluster_IVIF (grp,eps=5):     #Use eps=5 or 10 pA
                 ste_y.append(scipy.stats.sem([yvalues[c[1]][c[2]] for c in clust],nan_policy='omit'))
             ivif_dict[group][yvar]=mean_y
             ivif_dict[group][yvar+'_ste']=ste_y
-    return ivif_dict
-            
-
-
-            
-
+    return ivif_dict         
 
 def group_to_word(grp):
     if isinstance(grp,tuple) or isinstance(grp,list):
