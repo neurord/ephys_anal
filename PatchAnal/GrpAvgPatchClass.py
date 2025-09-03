@@ -7,6 +7,8 @@ Created on Thu Jan 28 14:34:30 2021
 import numpy as np
 import sys  
 import pandas as pd 
+pd.set_option('display.width', 1000)
+pd.set_option('display.max_colwidth', 100)
 import glob
 import os
 print (os.getcwd())
@@ -34,7 +36,7 @@ class GrpPatch:
         self.plot_corr=int(params.plot_ctrl[2]) #to plot correlation between LTP and age or baseline epsp
         #additional parameters.  FIXME: add to arg parser
         self.minimum_sweeps=10#20 #5 min pre and 15 min follow-up
-        self.slope_threshold=2e-5 #fraction of change per sec.  Same as .0012 /minute or .036 in 30 min.
+        self.slope_threshold=params.slope_thresh #fraction of change per sec.  Same as .0012 /minute or .036 in 30 min.
         self.nan_threshold=10 
         self.baseline_min=0#0.4
         self.baseline_max=2
@@ -60,13 +62,14 @@ class GrpPatch:
         PARAMS = []
         ANAL_PARAMS=[]
         IVIFset=[]
+        IOset=[]
         for outfname in self.outfnames:
             with open(outfname, 'rb') as f:
                 datadict = np.load(f,allow_pickle=True)
                 data=datadict['data'].item()
                 exper_param=datadict['params'].item()
                 if exper_param['exper']=='250812_2':
-                    exper_param['ID']='250530-B7-F2L' #not 250529-B9-F2L, wrong aimal ID entered in metadata during experiment
+                    exper_param['ID']='250530-B7-F2L' #not 250529-B9-F2L, wrong animal ID entered in metadata during experiment
                 ## calculate time since surgery (females only), and age if necessary
                 exper_date=self.dates(exper_param['exper'],'_')
                 if exper_param['SxDate']: #no surgery date for males:
@@ -80,6 +83,10 @@ class GrpPatch:
                 traces=datadict['trace'].item()
                 IV_IF=datadict['IV_IF'].item()
                 anal_params=datadict['anal_params'].item() #use if need to re-analyze experiment
+                if 'IO' in datadict.keys():
+                    IO=datadict['IO'].item()
+                else:
+                    IO={'amp':{'H2':[],'H1':[]}} #empty dictionary
                 celltype=exper_param['celltype']
                 print_params={k:v for k,v in exper_param.items() if not isinstance(v,dict) or k=='celltype'}
             if self.print_info and 'slope' in data.keys():
@@ -114,15 +121,15 @@ class GrpPatch:
                     if len(traces['normPSP'][hs])<self.minimum_sweeps:
                         print ("!!!NOT ENOUGH goodtraces", exper_param['exper'], hs, len(traces['normPSP'][hs]))
                     elif data['meanpre'][hs]<self.baseline_min:
-                        print ("!!!PSP amp too low", data['meanpre'][hs])
+                        print ("!!!PSP amp too low", exper_param['exper'], hs, data['meanpre'][hs])
                     elif numnan>self.nan_threshold:
                         print('!!! Too many Nans',exper_param['exper'], hs, numnan)
                     elif np.abs(cell_param['slope'])>self.slope_threshold or (np.abs(cell_param['slope'])-self.slope_std_factor*cell_param['slope_std']>0):
-                        print ("!!! BAD 5 min baseline", "5 min slope u,s", round(cell_param['slope'],7),round(cell_param['slope_std'],7))
+                        print ("!!! BAD 5 min baseline", exper_param['exper'], hs, "5 min slope u,s", round(cell_param['slope'],7),round(cell_param['slope_std'],7))
                         if np.abs(cell_param['slope10'])>self.slope_threshold or (np.abs(cell_param['slope10'])-self.slope_std_factor*cell_param['slope10_std']>0):
-                            print ("BAD 10 min baseline also", exper_param['exper'],  hs, "10 min slope u,s", round(cell_param['slope10'],7),round(cell_param['slope10_std'],7))
+                            print ("BAD 10 min baseline also: ", round(cell_param['slope10'],7),round(cell_param['slope10_std'],7))
                         else:
-                            print(" 10 min baseline is OK", round(cell_param['slope10'],7),round(cell_param['slope10_std'],7))
+                            print(" 10 min baseline is OK:", round(cell_param['slope10'],7),round(cell_param['slope10_std'],7))
                     #add experiment to BAD to plot later
                     self.BAD[exper_param['exper']+'_'+hs]={'normPSP':celltrace['normPSP'],'psptime':celltrace['psptime'], 'meanpre':data['meanpre'][hs],
                                                         'params':{'celltype':celltype[hs],'age':exper_param['age'],'drug':exper_param['drug'],'region':exper_param['region']},
@@ -134,16 +141,19 @@ class GrpPatch:
                 else: #data meets all criteria
                     if np.isnan(traces['normPSP'][hs]).any(): #inform about nans, even if using data
                         print ("########## np.nan detected", numnan,'times in',exper_param['exper']+'_'+hs)
-                    if traces['normPSP'][hs][-1]==0.0: #last popspike is 0, why????
+                    if traces['normPSP'][hs][-1]==0.0: #last response is 0, why????
                         print ("@@@@@@@@@ check PatchAnal for", exper_param['exper']+'_'+hs)
                     PARAMS.append(cell_param)
                     DATAS.append(celltrace)                    
                     IVIFset.append(self.IVIFdata(IV_IF,hs,cell_param))
-        
+                    IOset.append({'IOamp':IO['amp'][hs]}) 
+                    ANAL_PARAMS.append(anal_params)       
         dfdata = pd.DataFrame(DATAS)
         dfparams=pd.DataFrame(PARAMS)
         df_ivif=pd.DataFrame(IVIFset)
-        self.whole_df=pd.concat([dfparams,dfdata,df_ivif], axis = 1)
+        df_io=pd.DataFrame(IOset)
+        df_anal=pd.DataFrame(ANAL_PARAMS)
+        self.whole_df=pd.concat([dfparams,dfdata,df_ivif,df_io,df_anal], axis = 1)
         self.single_params.append('celltype')
         self.single_params.remove('pre_num')
 
@@ -326,7 +336,6 @@ class GrpPatch:
         np.savetxt(f, SASoutput, fmt='%s', delimiter='   ')
         f.close()
 
-
     def bar_graph_data(self,exclude_name): #this only plots and writes the 1st time sample
         lines=[]
         for grp in self.grp_data.groups.keys():
@@ -394,7 +403,7 @@ class GrpPatch:
         return filnm      
 
 if __name__ =='__main__':        
-    ARGS = "Surgery_record -plot_ctrl 111 -sex FC -age 75"      
+    ARGS = "Surgery_record -plot_ctrl 111"      #-sex FC -age 75
     exclude_name=[] #['theta'] #use to exclude variable(s) from column name in _points files	        
     try:
         commandline = ARGS.split() #in python: define space-separated ARGS string
@@ -426,12 +435,13 @@ if __name__ =='__main__':
         grp.write_traces() 
         grp.write_stat_data() 
         grp.bar_graph_data(exclude_name)
-        ivif_dict=grp_utl.cluster_IVIF(grp)
-        grp.write_IVIF(ivif_dict) 
+        ivif_dict=grp_utl.cluster_IVIF(grp,'Im',[a for a in grp.IVIF_variables if a != 'Im'],conversion=1e12 ) #convert to pA
+        io_dict=grp_utl.cluster_IVIF(grp,'IOrange',['IOamp'],eps=.005)  #Use eps=.001-0.009 - since only specify two digits for stim) 
+        grp.write_IVIF(ivif_dict) #FIXME: edit this to write IO curves
         if int(params.plot_ctrl[2]):
             grp_utl.plot_corr(grp,['age'],'PSPsamples') ######### FIXME: DEBUG
-            grp_utl.plot_IVIF(grp,grp.IVIF_variables)
-            grp_utl.plot_IVIF_mean(grp,ivif_dict)
+            grp_utl.plot_IVIF(grp,grp.IVIF_variables) #FIXME: edit this to write IO curves
+            grp_utl.plot_IVIF_mean(grp,ivif_dict) #FIXME: edit this to write IO curves
     #
     ########## NEXT STEPS: ################
     # 2.Group IO data (after processing in patchAnal)
