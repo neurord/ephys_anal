@@ -57,7 +57,7 @@ class PatchAnal():
         self.params={'exper':self.experiment,'region':self.region, 'genotype':self.genotype, 'age':self.age, 'drug':self.drug, 'ID':self.ID, 'celltype': self.celltype}
         self.anal_params={
                      'PSPstart':self.PSPstart, 'basestart': self.basestart, 'base_dur':self.base_dur, 'ss_dur': self.ss_dur, 
-                     'window': self.window, 'IOrange':self.IOrange,'digstim':self.digstim, 'threshval': self.threshval,
+                     'window': self.window, 'IOrange':self.IOrange,'digstim':self.digstim, 'threshval': self.threshval, 'decay':self.artifact_decay,
                      'APthresh':self.APthresh,'refract':self.refract,'max_risetime':self.max_risetime,'min_risetime':self.min_risetime}
 
     def read_datafile(self,question=True): #NOTE: create separate read_datafile if reading exported ibw files
@@ -72,7 +72,7 @@ class PatchAnal():
         #['DataWaveNotes'] - #first row of each entry contains: units, number of points, min and max values, dt for traces
 
         self.routines=list(self.data['Data'].keys())
-        psp_list=[r for r in self.routines if r.endswith('Synaptic_StimDigCC')]
+        psp_list=[r for r in self.routines if r.endswith('Synaptic_StimDigCC')] #FIXME: hardcoded name of baseline and followup
         #Determine which routines are pre theta and which are post-theta
         self.induction_list=[r for r in self.routines if self.induction in r] 
         if len(self.induction_list):
@@ -96,14 +96,14 @@ class PatchAnal():
             if p.startswith('R'+str(self.params['pre_num'])):
                 self.pre_trace=p
         #
-        IV_list=[r for r in self.routines if 'IV_CC' in r]
-        IF_list=[r for r in self.routines if r.endswith('IF_CC')]
+        IV_list=[r for r in self.routines if 'IV_CC' in r]#FIXME: hardcoded name of IV and IF curves
+        IF_list=[r for r in self.routines if r.endswith('IF_CC')]#FIXME: hardcoded name of IV and IF curves
         #dict of traces and dt info for IV and IF 
         self.IV_IF_dict={p: routine_list.index(p) for p in IV_list+IF_list} 
         #
         self.induct_dict={p:routine_list.index(p) for p in self.induction_list}
         ##dict of traces and dt info for IO curves.
-        IOtest=[r for r in self.routines if 'StimIOtest' in r]  
+        IOtest=[r for r in self.routines if 'StimIOtest' in r]  #FIXME: hardcoded name of IO curves
         self.IO_dict={p:routine_list.index(p) for p in IOtest}
         #
         self.dt_dict=self.psp_dict|self.IV_IF_dict|self.induct_dict|self.IO_dict #used to convert from I_dt to V_dt
@@ -126,7 +126,8 @@ class PatchAnal():
         import glob
         self.routine_time={} #initialized regardless of whether notebook file exists
         PSPstart_dict={} #if notebook file exists, ignore the PSPstart read in ArgParser
-        nfname=self.datadir+'Notebook_20'+self.experiment.split('_')[0]+'*.txt'  #fine all Notebook files with correct date
+        #nfname=self.datadir+'Notebook_20'+self.experiment.split('_')[0]+'*.txt'  #find all Notebook files with correct date
+        nfname=self.datadir+'Notebook_20'+'*.txt'  #find all Notebook files with correct date
         files=glob.glob(nfname)
         self.theta_in_notebook=False
         if len(files):
@@ -665,9 +666,12 @@ class PatchAnal():
         data_dict={'slope':self.Bopt,'slope_std':self.Bstd,'meanpre':self.meanpre,'max_latency':self.max_latency,'rheobase':self.rheobase,'psp_dt':self.dt} #single values
         tracedict={'amp':self.pspamp,'RMP':self.RMP, 'Raccess': self.Raccess,'normPSP': self.normpsp,'psptime':self.psptime,'peaktime':self.peaktime} #arrays
         IV_IFsummary={'IV':self.IV_IF,'spikes':self.IV_IF_spikes,'dt':self.IV_dt} #analysis of IV_IF routines
+        IOsummary={'amp':self.IOamp}
         if len(self.induction_list):
             induct_dict={'spikes':self.num_spikes,'induction':self.params['induction'], 'ISImin':self.min_interval, 'ISIother':self.other_interval, 'time_induct':self.params['time_to_induct'], 'spikes':self.spikes} #in GrpAvg, calculate mean spikes per routine?
-        np.savez(outfname, trace=tracedict,params=self.params,data=data_dict,IV_IF=IV_IFsummary,anal_params=self.anal_params)#,induct=induct_dict)
+            np.savez(outfname, trace=tracedict,params=self.params,data=data_dict,IV_IF=IV_IFsummary,anal_params=self.anal_params,IO=IOsummary,induct=induct_dict)
+        else:
+            np.savez(outfname, trace=tracedict,params=self.params,data=data_dict,IV_IF=IV_IFsummary,anal_params=self.anal_params,IO=IOsummary)
 
 if __name__=='__main__':
     #ARGS='250704_0 -headstages H2 -celltype D1-SPN -decay .002'
@@ -688,7 +692,7 @@ if __name__=='__main__':
     exp.init_arrays()
     exp.IV_IF_anal()
     exp.calc_psp()
-    exp.normalize(baseline_time=10) #Specify baseline_time in minutes if not entire baseline data
+    exp.normalize(baseline_time=5) #Specify baseline_time in minutes if not entire baseline data
     if len(exp.induction_list):
         stim_time=exp.analyze_theta()
     exp.IO_curve()
