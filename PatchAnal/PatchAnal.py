@@ -44,11 +44,12 @@ class PatchAnal():
         self.min_risetime=params.min_risetime
         self.threshval=params.threshval
         self.headstages=params.headstages
-        self.IOrange=params.IOrange 
+        self.IOrange=np.array(params.IOrange)
         self.digstim=params.digstim 
         self.Stim_interval=params.PSP_interval
         self.artifact_decay=params.decay #time for decay of stimulation artifact
         self.induction=params.induction
+        self.baseline_time=params.base_time
         if len(params.headstages)==len(params.celltype): 
             self.celltype={h:params.celltype[i] for i,h in enumerate(self.headstages)}
         else:
@@ -56,8 +57,8 @@ class PatchAnal():
             exit()
         self.params={'exper':self.experiment,'region':self.region, 'genotype':self.genotype, 'age':self.age, 'drug':self.drug, 'ID':self.ID, 'celltype': self.celltype}
         self.anal_params={
-                     'PSPstart':self.PSPstart, 'basestart': self.basestart, 'base_dur':self.base_dur, 'ss_dur': self.ss_dur, 
-                     'window': self.window, 'IOrange':self.IOrange,'digstim':self.digstim, 'threshval': self.threshval, 'decay':self.artifact_decay,
+                     'PSPstart':self.PSPstart, 'basestart': self.basestart, 'base_dur':self.base_dur, 'ss_dur': self.ss_dur, 'base_time': self.baseline_time,
+                     'window': self.window, 'IOrange':np.array(self.IOrange),'digstim':self.digstim, 'threshval': self.threshval, 'decay':self.artifact_decay,
                      'APthresh':self.APthresh,'refract':self.refract,'max_risetime':self.max_risetime,'min_risetime':self.min_risetime}
 
     def read_datafile(self,question=True): #NOTE: create separate read_datafile if reading exported ibw files
@@ -639,8 +640,8 @@ class PatchAnal():
         self.meanpre={}
         self.Aopt={};self.Bopt={}; self.Bstd={}
         self.num_pre=np.shape(self.data['Data'][self.pre_trace].__array__())[-1]
-        if baseline_time:
-            pre_length=int((baseline_time*60)/self.Stim_interval) #convert from minutes to seconds to samples
+        if self.baseline_time:
+            pre_length=int((self.baseline_time*60)/self.Stim_interval) #convert from minutes to seconds to samples
             pre_start=max(0,self.num_pre-pre_length) #cannot be negative
         else:
             pre_start=0
@@ -674,7 +675,7 @@ class PatchAnal():
             np.savez(outfname, trace=tracedict,params=self.params,data=data_dict,IV_IF=IV_IFsummary,anal_params=self.anal_params,IO=IOsummary)
 
 if __name__=='__main__':
-    #ARGS='250704_0 -headstages H2 -celltype D1-SPN -decay .002'
+    ARGS='250704_1 -headstages H2 -celltype D1-SPN -decay .003 -base_time 5'
     try:
         commandline = ARGS.split() 
         do_exit = False
@@ -692,7 +693,7 @@ if __name__=='__main__':
     exp.init_arrays()
     exp.IV_IF_anal()
     exp.calc_psp()
-    exp.normalize(baseline_time=5) #Specify baseline_time in minutes if not entire baseline data
+    exp.normalize() #Specify baseline_time in minutes if not entire baseline data
     if len(exp.induction_list):
         stim_time=exp.analyze_theta()
     exp.IO_curve()
