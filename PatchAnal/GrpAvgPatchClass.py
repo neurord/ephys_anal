@@ -84,13 +84,6 @@ class GrpPatch:
                 print_params={k:v for k,v in exper_param.items() if not isinstance(v,dict) or k=='celltype'}
             if self.print_info and 'slope' in data.keys():
                 print ("file read:", print_params,", baseline slope=", [round(sl,6) for sl in data['slope'].values()])
-            ############ Select subset of files based on user specified criteria ##########  FIXME: won't work on sex since being read from ID file after this
-            ignore = ((self.params.sex and self.params.sex != exper_param['sex']) or 
-                          (self.params.age is not None and self.params.age >= exper_param['age']) or
-                          (self.params.maxage is not None and self.params.maxage <= exper_param['age']) or
-                          (self.params.drug and self.params.drug != exper_param['drug']) or
-                          (self.params.region and self.params.region != exper_param['region']))# or
-                          #(self.params.induction and self.params.induction !=exper_param['induction']['induct_freq']))
             ########## identify experiments that do not meet includsion criteria ##########
             for hs in celltype.keys():
                 numnan=sum(np.isnan(traces['normPSP'][hs]))
@@ -117,7 +110,7 @@ class GrpPatch:
                     if (np.abs(data['slope'][hs])>self.slope_threshold) or \
                                 (np.abs(data['slope'][hs])-self.slope_std_factor*data['slope_std'][hs]>0):
                         exclude=True'''
-                if exclude and not ignore:
+                if exclude: #print information message as to why experiment begin excluded
                     if len(traces['normPSP'][hs])<self.minimum_sweeps:
                         print ("!!!NOT ENOUGH goodtraces", exper_param['exper'], hs, len(traces['normPSP'][hs]))
                     elif data['meanpre'][hs]<self.baseline_min:
@@ -129,18 +122,14 @@ class GrpPatch:
                         if np.abs(cell_param['slope10'])>self.slope_threshold or (np.abs(cell_param['slope10'])-self.slope_std_factor*cell_param['slope10_std']>0):
                             print ("BAD 10 min baseline also", exper_param['exper'],  hs, "10 min slope u,s", round(cell_param['slope10'],7),round(cell_param['slope10_std'],7))
                         else:
-                                print(" 10 min baseline is OK", round(cell_param['slope10'],7),round(cell_param['slope10_std'],7))
+                            print(" 10 min baseline is OK", round(cell_param['slope10'],7),round(cell_param['slope10_std'],7))
+                    #add experiment to BAD to plot later
                     self.BAD[exper_param['exper']+'_'+hs]={'normPSP':celltrace['normPSP'],'psptime':celltrace['psptime'], 'meanpre':data['meanpre'][hs],
                                                         'params':{'celltype':celltype[hs],'age':exper_param['age'],'drug':exper_param['drug'],'region':exper_param['region']},
                                                         'slope':cell_param['slope'],'slope_std':cell_param['slope_std'], 'Intercept':cell_param['Intercept'],
                                                         'slope10':Bopt,'slope10_std':Bstd,'Intercept10':Aopt}
-                    #Exclude is True if not enough sweeps or otherwise bad data.  Ignore is true if not the subset of data desired
                     if self.print_info:
                         print ("***** excluding:", exper_param['exper']+'_'+hs)
-                    next 
-                elif ignore: #regardless of whether data meets exclusion criteria
-                    if self.print_info:
-                        print ("***** ignoring:", exper_param['exper']+'_'+hs)
                     next 
                 else: #data meets all criteria
                     if np.isnan(traces['normPSP'][hs]).any(): #inform about nans, even if using data
@@ -157,6 +146,24 @@ class GrpPatch:
         self.whole_df=pd.concat([dfparams,dfdata,df_ivif], axis = 1)
         self.single_params.append('celltype')
         self.single_params.remove('pre_num')
+
+    def ignore(self):
+        ############ Select subset of files based on user specified criteria ##########  
+        if self.params.sex:
+            self.whole_df = self.whole_df[self.whole_df.Status == self.params.sex]
+            print('ignoring experiments with sex not',self.params.sex)
+        if self.params.age:
+            self.whole_df = self.whole_df[self.whole_df.age >= self.params.age]
+            print('ignoring experiments with age less than', self.params.age)
+        if self.params.maxage:
+            self.whole_df = self.whole_df[self.whole_df.age <= self.params.maxage]
+            print('ignoring experiments with age greater than',self.params.age)
+        if self.params.region:
+            self.whole_df = self.whole_df[self.whole_df.region == self.params.region]
+            print('ignoring experiments with region not ',self.params.region)
+        if self.params.drug:
+            self.whole_df = self.whole_df[self.whole_df.drug == self.params.drug]
+            print('ignoring experiments with drug not ',self.params.drug)
 
     def new_slope(self,normPSP,time,starti,induct_index):
         pre_traces=normPSP[starti:induct_index]
@@ -387,7 +394,7 @@ class GrpPatch:
         return filnm      
 
 if __name__ =='__main__':        
-    ARGS = "Surgery_record -plot_ctrl 111"      
+    ARGS = "Surgery_record -plot_ctrl 111 -sex FC -age 75"      
     exclude_name=[] #['theta'] #use to exclude variable(s) from column name in _points files	        
     try:
         commandline = ARGS.split() #in python: define space-separated ARGS string
@@ -407,6 +414,7 @@ if __name__ =='__main__':
     if len(grp.outfnames):
         grp.read_data()
         grp_utl.read_IDfile(grp,'Sample',['Status']) #'Sample' has the unique identifier, ['Status'] is list of independent variables, e.g., sex, genotype to be added to df
+        grp.ignore()
         grp.plot_bad()
         grp.group_data('psptime','normPSP') 
         if int(params.plot_ctrl[1])>0:
