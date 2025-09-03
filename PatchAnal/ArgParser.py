@@ -16,7 +16,7 @@ def ArgParserPatch(commandline,do_exit,flag=0):
     #parser.add_argument("-bathtemp", type=str, choices=["heat","RT"],help="heat or RT", default='RT')
     #parser.add_argument("-Rtip", type=float,help="pipette tip resistance") #Read from logfile
     parser.add_argument("-ID", type=str, help="animal ID") #READ FROM NOTEBOOK file 
-    parser.add_argument("-sex", type=str, help="sex/estrus/pellet, e.g. M, F, FE, OVX, OVX+E2") #READ FROM NOTEBOOK file for PatchAnal, no default for GrpAvgPatchClass 
+    parser.add_argument("-sex", type=str, help="sex/estrus/pellet, e.g. M, F, FE, FC, OVX, OVX+E2") #READ FROM NOTEBOOK file for PatchAnal, no default for GrpAvgPatchClass 
     parser.add_argument("-age", type=int, help="animal age in days") #READ FROM NOTEBOOK file  for PatchAnal, no default for GrpAvgPatchClass 
     parser.add_argument("-drug", type=str,help="bath solution") #READ FROM NOTEBOOK file for PatchAnal, no default for GrpAvgPatchClass 
     parser.add_argument("-region", type=str, choices=["DMS", "DLS"], help="which striatal region") # READ FROM NOTEBOOK file for PatchAnal, no default for GrpAvgPatchClass 
@@ -43,6 +43,7 @@ def ArgParserPatch(commandline,do_exit,flag=0):
         parser.add_argument('-threshval',type=float,help='Vm at earliest point that rise exceeds 2% of max risetime', default=0.02) #with 5%, bigger AHP, smalle spike
         parser.add_argument('-PSP_interval',type=int,help='time between PSP baseline traces, if no notebook file', default=30) #with 5%, bigger AHP, smalle spike
         parser.add_argument("-decay", type = float, help='stimulation artifact decay time, in sec', default = 0.002) #includes time for AP if one occurs
+        parser.add_argument("-base_time", type = float, help='duration for calculating baseline (pre-induction) PSP amplitude', default = 10) #includes time for AP if one occurs
         parser.add_argument("-induction", type=str, choices=["ThetaBurst", "20Hz", 'None'], help='name of induction protocol', default = 'ThetaBurst')
     ### next set relates to whether a compound EPSP is observed
     '''parser.add_argument('PSPend', type=float, help='expected end of a PSP, typically between 0.265-0.28')
@@ -59,6 +60,7 @@ def ArgParserPatch(commandline,do_exit,flag=0):
         parser.add_argument("-sepvarlist", nargs="+",default=['Status','celltype'],help='list of separation variables for grouping data')
         parser.add_argument("-induction", type=str ,help="induction frequency, e.g. 20 Hz or 10.5 Hz") 
         parser.add_argument("-maxage", type=int, help="maximum animal age to include in analysis") 
+        parser.add_argument("-slope_thresh", type=float, help="maximum value of baseline slope", default=2e-5) #fraction of change per sec.  Same as .0012 /minute or .036 in 30 min.
 
     try:
         args = parser.parse_args(commandline) # maps arguments (commandline) to choices, and checks for validity of choices.
