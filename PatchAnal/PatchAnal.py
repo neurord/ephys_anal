@@ -664,7 +664,7 @@ class PatchAnal():
 
     def write_data(self):
         outfname=self.outputdir+self.experiment
-        data_dict={'slope':self.Bopt,'slope_std':self.Bstd,'meanpre':self.meanpre,'max_latency':self.max_latency,'rheobase':self.rheobase,'psp_dt':self.dt} #single values
+        data_dict={'slope':self.Bopt, 'Intercept':self.Aopt,'slope_std':self.Bstd,'meanpre':self.meanpre,'max_latency':self.max_latency,'rheobase':self.rheobase,'psp_dt':self.dt, 'num_pre':self.num_pre} #single values
         tracedict={'amp':self.pspamp,'RMP':self.RMP, 'Raccess': self.Raccess,'normPSP': self.normpsp,'psptime':self.psptime,'peaktime':self.peaktime} #arrays
         IV_IFsummary={'IV':self.IV_IF,'spikes':self.IV_IF_spikes,'dt':self.IV_dt} #analysis of IV_IF routines
         IOsummary={'amp':self.IOamp}
@@ -675,7 +675,7 @@ class PatchAnal():
             np.savez(outfname, trace=tracedict,params=self.params,data=data_dict,IV_IF=IV_IFsummary,anal_params=self.anal_params,IO=IOsummary)
 
 if __name__=='__main__':
-    ARGS='250704_1 -headstages H2 -celltype D1-SPN -decay .003 -base_time 5'
+    #ARGS='250704_1 -headstages H2 -celltype D1-SPN -decay .003 -base_time 5'
     try:
         commandline = ARGS.split() 
         do_exit = False
