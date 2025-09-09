@@ -97,11 +97,12 @@ class GrpPatch:
                 cell_param=self.extract_params(exper_param,hs,data)
                 celltrace,induct_index,induct_index_avg=self.average_samples(traces,hs,exper_param['Stim_interval'])
                 celltrace['PSPsamples']=self.summary_measure(celltrace,cell_param)
-                #### Re-do slope to get intercept - not stored in .npz file. start slope at 10 min
-                Aopt,Bopt,Bstd=self.new_slope(traces['amp'][hs],traces['psptime'][hs],10,induct_index)
+                #### Re-do slope to get intercept - not stored in .npz file. start slope 5 min before induction
+                stim_interval=round([v for k,v in exper_param['Stim_interval'].items() if k.startswith('R'+str(exper_param['pre_num']))][0])
+                Aopt,Bopt,Bstd=self.new_slope(traces['amp'][hs],traces['psptime'][hs],stim_interval, induct_index,base_time=5) #replace with anal_params['base_time']
                 cell_param['Intercept']=Aopt
                 #### Recalculate slope using entire baseline
-                Aopt,Bopt,Bstd=self.new_slope(traces['amp'][hs],traces['psptime'][hs],0,induct_index)
+                Aopt,Bopt,Bstd=self.new_slope(traces['amp'][hs],traces['psptime'][hs],stim_interval,induct_index)#,data['num_pre'])
                 cell_param['slope10']=Bopt;cell_param['slope10_std']=Bstd;cell_param['Intercept10']=Aopt
                 exclude = ((len(traces['normPSP'][hs])<self.minimum_sweeps) or
                                 (np.abs(data['slope'][hs])>self.slope_threshold) or
@@ -175,7 +176,15 @@ class GrpPatch:
             self.whole_df = self.whole_df[self.whole_df.drug == self.params.drug]
             print('ignoring experiments with drug not ',self.params.drug)
 
-    def new_slope(self,normPSP,time,starti,induct_index):
+    def new_slope(self,normPSP,time,stim_interval,induct_index,num_pre=None,base_time=None):
+        if num_pre:
+            if induct_index != num_pre:
+                print('Recalculating slope. Warning, induct_index different than num_pre')
+        if base_time: #base_time counts back from induction
+            pre_length=int((base_time*60)/stim_interval) #convert from minutes to seconds to samples
+            starti=max(0,induct_index-pre_length) #cannot be negative
+        else:
+            starti=0
         pre_traces=normPSP[starti:induct_index]
         pre_time=time[starti:induct_index]
         no_nan_indices=~np.isnan(pre_traces)
@@ -373,12 +382,11 @@ class GrpPatch:
             np.savetxt(f,outputdata, fmt='%7.5f',delimiter='   ') #'%7.4f' = format is float with 7 characters, 4 after decimal
             f.close()
     
-    def write_IVIF(self, ivif_dict):
-        plot_vars=[a for a in self.IVIF_variables if a != 'Im']
+    def write_IVIF(self, ivif_dict, plot_vars, x):
         for group in ivif_dict.keys():
-            f=open(self.subdir+self.filenm[group]+"_IVIF.txt",'w') 
-            header='Im(pA)   '
-            outputdata=ivif_dict[group]['Im']
+            f=open(self.subdir+self.filenm[group]+"_"+x+".txt",'w') 
+            header=x
+            outputdata=ivif_dict[group][x]
             for yvar in plot_vars:
                 header=header+self.filenm[group]+yvar+'_avg   '+self.filenm[group]+yvar+'_sem  '
                 outputdata=np.column_stack((outputdata,ivif_dict[group][yvar],ivif_dict[group][yvar+'_ste']))
@@ -435,16 +443,20 @@ if __name__ =='__main__':
         grp.write_traces() 
         grp.write_stat_data() 
         grp.bar_graph_data(exclude_name)
-        ivif_dict=grp_utl.cluster_IVIF(grp,'Im',[a for a in grp.IVIF_variables if a != 'Im'],conversion=1e12 ) #convert to pA
-        io_dict=grp_utl.cluster_IVIF(grp,'IOrange',['IOamp'],eps=.005)  #Use eps=.001-0.009 - since only specify two digits for stim) 
-        grp.write_IVIF(ivif_dict) #FIXME: edit this to write IO curves
-        if int(params.plot_ctrl[2]):
-            grp_utl.plot_corr(grp,['age'],'PSPsamples') ######### FIXME: DEBUG
-            grp_utl.plot_IVIF(grp,grp.IVIF_variables) #FIXME: edit this to write IO curves
-            grp_utl.plot_IVIF_mean(grp,ivif_dict) #FIXME: edit this to write IO curves
+        plot_vars=[a for a in grp.IVIF_variables if a != 'Im']
+        ivif_dict=grp_utl.cluster_IVIF(grp,plot_vars,'Im',conversion=1e12 ) #convert to pA
+        #io_dict=grp_utl.cluster_IVIF(grp,['IOamp'],'IOrange',eps=.005)  #Use eps=.001-0.009 - since only specify two digits for stim) 
+        #for i_dict,yvars,xvar,units in zip([ivif_dict,io_dict],[plot_vars,['IOamp']],['Im','IOrange'],['pA','mA']):
+        for i_dict,yvars,xvar,units in zip([ivif_dict],[plot_vars],['Im'],['pA']):
+            grp.write_IVIF(i_dict,yvars,xvar) 
+            if int(params.plot_ctrl[2]):
+                grp_utl.plot_corr(grp,['age'],'PSPsamples') ######### FIXME: draw significant lines?
+                grp_utl.plot_IVIF(grp,plot_vars, xvar,units) #FIXME: test writing IO curves
+                grp_utl.plot_IVIF_mean(grp,i_dict,yvars, xvar) #FIXME: test writing IO curves
+
     #
     ########## NEXT STEPS: ################
-    # 2.Group IO data (after processing in patchAnal)
+    # 2.test cluster_IVIF for IO curves, plot_IVIF and plot_IVIFmean to work with IOcurves
     #   
     # 3. extract Number of spikes during induction to use in corr plots?  After saving in patch Anal
     ### IF needed, can add back in newcolumn_name - to take care of drug concentration - from GrpAvgPopSpikeClass
