@@ -152,9 +152,11 @@ def plot_IVIF(grp,yvars,x,units):
         figs.append(fig)
         axes=fig.axes
         fig.suptitle(yvar+' vs '+x)
-        xlabel=x
+        xlabel=x+' ('+units+')'
         if units=='pA':
             conversion=1e12
+        else:
+            conversion=1
         xlabel=xlabel+units
         fig.canvas.manager.set_window_title(x+' - separate'+str(fnum)) #FIXME: customize for IO
         for ax,group in enumerate(grp.grp_data.groups.keys()):
@@ -162,7 +164,10 @@ def plot_IVIF(grp,yvars,x,units):
             for ii in grp.grp_data.get_group(group).index:
                 yvalues=grp.grp_data.get_group(group)[yvar][ii]
                 xvals=grp.grp_data.get_group(group)[x][ii]*conversion
-                axes[ax].plot(xvals,yvalues,label=grp.grp_data.get_group(group)['exper'][ii])
+                if np.all(xvals[:-1] <= xvals[1:]):
+                    axes[ax].plot(xvals,yvalues,label=grp.grp_data.get_group(group)['exper'][ii])
+                else:
+                    axes[ax].scatter(xvals,yvalues,label=grp.grp_data.get_group(group)['exper'][ii])
                 axes[ax].set_ylabel(yvar+' '+labl)
             axes[ax].set_xlabel(xlabel)
         for axis in axes:

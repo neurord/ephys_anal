@@ -79,7 +79,9 @@ class GrpPatch:
                     exper_param['sx_time']=np.nan #FIXME: might need to use something else to make correlation plots work
                 if exper_param['age'] is None:
                     birth_date=self.dates(exper_param['ID'],'-')
-                    exper_param['age']=(exper_date-birth_date).days                
+                    exper_param['age']=(exper_date-birth_date).days
+                else: 
+                    exper_param['age']=int(exper_param['age'])
                 traces=datadict['trace'].item()
                 IV_IF=datadict['IV_IF'].item()
                 anal_params=datadict['anal_params'].item() #use if need to re-analyze experiment
@@ -388,7 +390,7 @@ class GrpPatch:
             header=x
             outputdata=ivif_dict[group][x]
             for yvar in plot_vars:
-                header=header+self.filenm[group]+yvar+'_avg   '+self.filenm[group]+yvar+'_sem  '
+                header=header+self.filenm[group]+' '+yvar+'_avg   '+self.filenm[group]+yvar+'_sem  '
                 outputdata=np.column_stack((outputdata,ivif_dict[group][yvar],ivif_dict[group][yvar+'_ste']))
             f.write(header+"\n")
             np.savetxt(f,outputdata, fmt='%7.5f',delimiter='   ') #'%7.4f' = format is float with 7 characters, 4 after decimal
@@ -411,7 +413,7 @@ class GrpPatch:
         return filnm      
 
 if __name__ =='__main__':        
-    ARGS = "Surgery_record -plot_ctrl 111"      #-sex FC -age 75
+    #ARGS = "Surgery_record -plot_ctrl 121"      #-sex FC -age 75
     exclude_name=[] #['theta'] #use to exclude variable(s) from column name in _points files	        
     try:
         commandline = ARGS.split() #in python: define space-separated ARGS string
@@ -445,14 +447,13 @@ if __name__ =='__main__':
         grp.bar_graph_data(exclude_name)
         plot_vars=[a for a in grp.IVIF_variables if a != 'Im']
         ivif_dict=grp_utl.cluster_IVIF(grp,plot_vars,'Im',conversion=1e12 ) #convert to pA
-        #io_dict=grp_utl.cluster_IVIF(grp,['IOamp'],'IOrange',eps=.005)  #Use eps=.001-0.009 - since only specify two digits for stim) 
-        #for i_dict,yvars,xvar,units in zip([ivif_dict,io_dict],[plot_vars,['IOamp']],['Im','IOrange'],['pA','mA']):
-        for i_dict,yvars,xvar,units in zip([ivif_dict],[plot_vars],['Im'],['pA']):
+        io_dict=grp_utl.cluster_IVIF(grp,['IOamp'],'IOrange',eps=.005)  #Use eps=.001-0.009 - since only specify two digits for stim) 
+        for i_dict,yvars,xvar,units in zip([ivif_dict,io_dict],[plot_vars,['IOamp']],['Im','IOrange'],['pA','mA']):
             grp.write_IVIF(i_dict,yvars,xvar) 
-            if int(params.plot_ctrl[2]):
-                grp_utl.plot_corr(grp,['age'],'PSPsamples') ######### FIXME: draw significant lines?
-                grp_utl.plot_IVIF(grp,plot_vars, xvar,units) #FIXME: test writing IO curves
-                grp_utl.plot_IVIF_mean(grp,i_dict,yvars, xvar) #FIXME: test writing IO curves
+            grp_utl.plot_IVIF(grp,yvars, xvar,units) #FIXME: test writing IO curves
+            grp_utl.plot_IVIF_mean(grp,i_dict,yvars, xvar) #FIXME: test writing IO curves
+        if int(params.plot_ctrl[2]):
+            grp_utl.plot_corr(grp,['age'],'PSPsamples') ######### FIXME: draw significant lines?
 
     #
     ########## NEXT STEPS: ################
