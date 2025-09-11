@@ -211,6 +211,8 @@ class GrpPatch:
             #THEN, for samp in range(induction_index,len(tr[hs]),tracesPerMinute)
         #DO NOT AVERAGE ACROSS INDUCTION INDEX
         for k, tr in traces.items():
+            if k=='psptime':
+                tr[hs]=tr[hs]-tr[hs][induction_index-1] #shift psptime to make last baseline time = 0 
             for samp in range(0,len(tr[hs]),tracesPerMinute):
                 if samp<induction_index and samp+tracesPerMinute>induction_index:
                     time_samples[k].append(np.nanmean(tr[hs][samp:induction_index]))                    
@@ -319,6 +321,7 @@ class GrpPatch:
                     print("bad baseline", exper, "slope",round( bad_data['slope'],7), "+/-", round(bad_data['slope_std'],7))
                     p=axes[0].plot(time,bad_data['normPSP'],'-', label=exper)
                     color = p[-1].get_color()
+                    #FIXME: this does not plot correct 5 min line when NOT aligning induction with time=0
                     axes[0].plot(time,bad_data['Intercept']/bad_data['meanpre']+bad_data['slope']*(SEC_PER_MIN/bad_data['meanpre'])*time,linestyle=':', color=color)
                     axes[0].plot(time,bad_data['Intercept10']/bad_data['meanpre']+bad_data['slope10']*(SEC_PER_MIN/bad_data['meanpre'])*time,linestyle='-.', color=color)
                 else:
@@ -341,8 +344,8 @@ class GrpPatch:
             pspmean=[round(row[col],5) for row in self.whole_df.PSPsamples]
             if not np.all([np.isnan(k) for k in pspmean]):
                 SASoutput=np.column_stack((SASoutput,pspmean))
-                SASheader += 'baseline normPSP_'+str(self.sample_times[col])
-        f=open(self.subdir+"PARAMSforSAS.txt", 'w')
+                SASheader += ' baseline normPSP_'+str(self.sample_times[col])
+        f=open(self.subdir+"PARAMSforStats.txt", 'w')
         f.write(SASheader +"\n")
         np.savetxt(f, SASoutput, fmt='%s', delimiter='   ')
         f.close()
@@ -413,7 +416,7 @@ class GrpPatch:
         return filnm      
 
 if __name__ =='__main__':        
-    #ARGS = "Surgery_record -plot_ctrl 121"      #-sex FC -age 75
+    #ARGS = "Surgery_record -plot_ctrl 111"      #-sex FC -age 75
     exclude_name=[] #['theta'] #use to exclude variable(s) from column name in _points files	        
     try:
         commandline = ARGS.split() #in python: define space-separated ARGS string
@@ -450,14 +453,16 @@ if __name__ =='__main__':
         io_dict=grp_utl.cluster_IVIF(grp,['IOamp'],'IOrange',eps=.005)  #Use eps=.001-0.009 - since only specify two digits for stim) 
         for i_dict,yvars,xvar,units in zip([ivif_dict,io_dict],[plot_vars,['IOamp']],['Im','IOrange'],['pA','mA']):
             grp.write_IVIF(i_dict,yvars,xvar) 
-            grp_utl.plot_IVIF(grp,yvars, xvar,units) #FIXME: test writing IO curves
-            grp_utl.plot_IVIF_mean(grp,i_dict,yvars, xvar) #FIXME: test writing IO curves
+            if int(params.plot_ctrl[0]):
+                grp_utl.plot_IVIF(grp,yvars, xvar,units) 
+                grp_utl.plot_IVIF_mean(grp,i_dict,yvars, xvar) 
         if int(params.plot_ctrl[2]):
-            grp_utl.plot_corr(grp,['age'],'PSPsamples') ######### FIXME: draw significant lines?
+            grp_utl.plot_corr(grp,['age'],'PSPsamples') 
 
     #
     ########## NEXT STEPS: ################
-    # 2.test cluster_IVIF for IO curves, plot_IVIF and plot_IVIFmean to work with IOcurves
+    # 1. IVIF params in PARAMSforStats: rheobase - eliminate one, max_latency
+    # 2. evaluate series resistance
     #   
     # 3. extract Number of spikes during induction to use in corr plots?  After saving in patch Anal
     ### IF needed, can add back in newcolumn_name - to take care of drug concentration - from GrpAvgPopSpikeClass
