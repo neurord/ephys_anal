@@ -41,9 +41,9 @@ class GrpPatch:
         self.baseline_min=0#0.4
         self.baseline_max=2
         self.print_info=1 
-        self.single_params=['region','genotype','age','drug','ID','time_to_induct','pre_num']
+        self.single_params=['region','genotype','age','drug','ID','time_to_induct','sx_time','pre_num'] #extract these from exper_param
         self.fname_vars=['region','genotype','sex','drug']
-        self.IVIF_variables=['Im','Vm','latency','num_spikes'] #also, APheight, APwidth, AHP_amp, AHP_time
+        self.IVIF_variables=['Im','Vm','latency','num_spikes'] #also, APheight, APwidth, AHP_amp, AHP_time?
 
     def dates(self,datestring,separator):
         if separator:
@@ -153,11 +153,13 @@ class GrpPatch:
                     ANAL_PARAMS.append(anal_params)       
         dfdata = pd.DataFrame(DATAS)
         dfparams=pd.DataFrame(PARAMS)
+        dfparams.drop(['max_latency','rheobase'],inplace=True,axis=1)
         df_ivif=pd.DataFrame(IVIFset)
         df_io=pd.DataFrame(IOset)
         df_anal=pd.DataFrame(ANAL_PARAMS)
         self.whole_df=pd.concat([dfparams,dfdata,df_ivif,df_io,df_anal], axis = 1)
-        self.single_params.append('celltype')
+        for col in ['celltype','Status','max_latency','rheobase']:
+            self.single_params.append(col)
         self.single_params.remove('pre_num')
 
     def ignore(self):
@@ -338,13 +340,13 @@ class GrpPatch:
 
     def write_stat_data(self):
         SASoutput = self.whole_df[self.single_params] #in to a 2d array you write it into SASoutput. 
-        SASheader= '   '.join(self.single_params) 
+        SASheader= '   '.join(self.single_params) + ' baseline'
         SASoutput=np.column_stack((SASoutput,round(self.whole_df.meanpre,5)))
         for col in range(len(self.whole_df.PSPsamples[0])):
             pspmean=[round(row[col],5) for row in self.whole_df.PSPsamples]
             if not np.all([np.isnan(k) for k in pspmean]):
                 SASoutput=np.column_stack((SASoutput,pspmean))
-                SASheader += ' baseline normPSP_'+str(self.sample_times[col])
+                SASheader += ' normPSP_'+str(self.sample_times[col])
         f=open(self.subdir+"PARAMSforStats.txt", 'w')
         f.write(SASheader +"\n")
         np.savetxt(f, SASoutput, fmt='%s', delimiter='   ')
