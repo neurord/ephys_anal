@@ -31,6 +31,7 @@ def exp_avg(datas, datatype=None,somethreshold=999e6):
     return mn,stdev,count
 
 def plot_groups(avg_grp,stderr_grp,minutes_grp,count,common_filenm,sepvarlist,plot_cols=None):
+    from matplotlib.patches import Rectangle
     #option: 1 or multiple columns, even if two or more seperation variables
     #maxdur=minutes_grp[0][-1]
     keylist=sorted(list(avg_grp.keys()))
@@ -59,7 +60,7 @@ def plot_groups(avg_grp,stderr_grp,minutes_grp,count,common_filenm,sepvarlist,pl
             #axes[-1].axis([-10,40,0,2]) #axis limits! FIXME: Definitely change these
             axes[-1].axhline(1)
             axes[-1].set_ylabel('normPSP')
-            axes[-1].set_xlabel('Time (min)') #FIXME: use stim current when plotting IO curve
+            axes[-1].set_xlabel('Time (min)') 
         
     for grp in avg_grp.keys():  
         if len(sepvarlist)==1:
@@ -76,7 +77,9 @@ def plot_groups(avg_grp,stderr_grp,minutes_grp,count,common_filenm,sepvarlist,pl
             axnum=row*numcols+col
             lbl='_'.join(grp)+',n='+str(np.max(count[grp]))
         axes[axnum].errorbar(minutes_grp[grp],avg_grp[grp],stderr_grp[grp],label=lbl) #alternative: filenm[grp]
-        axes[axnum].legend(fontsize=10, loc='best')
+        axes[axnum].legend(fontsize=10, loc='upper left')
+    for axnum in range(len(axes)):
+        axes[axnum].add_patch(Rectangle((0,0.5),3,3,alpha=0.2,color='gray'))
     return fig
     
 def plot_onegroup(dict_group,param_group,group_name):
@@ -145,6 +148,11 @@ def plot_IVIF_mean(grp,ivif_dict, plot_vars, x):
     fig.canvas.draw()
     pyplot.show()
 
+def sort_y_by_x(Y,X):
+    newy=[y for _, y in sorted(zip(X, Y))]
+    newx=[x for x, _ in sorted(zip(X, Y))]
+    return newy, newx
+
 def plot_IVIF(grp,yvars,x,units): 
     figs=[]
     for fnum,yvar in enumerate(yvars):
@@ -164,10 +172,8 @@ def plot_IVIF(grp,yvars,x,units):
             for ii in grp.grp_data.get_group(group).index:
                 yvalues=grp.grp_data.get_group(group)[yvar][ii]
                 xvals=grp.grp_data.get_group(group)[x][ii]*conversion
-                if np.all(xvals[:-1] <= xvals[1:]):
-                    axes[ax].plot(xvals,yvalues,label=grp.grp_data.get_group(group)['exper'][ii])
-                else:
-                    axes[ax].scatter(xvals,yvalues,label=grp.grp_data.get_group(group)['exper'][ii])
+                yvalues,xvals=sort_y_by_x(yvalues,xvals) #sort x and y values by ordering x values
+                axes[ax].plot(xvals,yvalues,label=grp.grp_data.get_group(group)['exper'][ii])
                 axes[ax].set_ylabel(yvar+' '+labl)
             axes[ax].set_xlabel(xlabel)
         for axis in axes:
