@@ -49,7 +49,7 @@ def plot_groups(avg_grp,stderr_grp,minutes_grp,count,common_filenm,sepvarlist,pl
     print('row keys', entry1,'col keys', entry2,'#rows, #cols', numrows,numcols)
     #set up axes for the plots
     pyplot.ion()
-    fig=pyplot.figure(figsize=(10,15))
+    fig=pyplot.figure(figsize=(6*numcols,10))
     fig.canvas.manager.set_window_title('Group Average of Normalized PSP for:'+common_filenm)
     gs=gridspec.GridSpec(numrows,numcols)
     axes=[]
@@ -82,28 +82,40 @@ def plot_groups(avg_grp,stderr_grp,minutes_grp,count,common_filenm,sepvarlist,pl
         axes[axnum].add_patch(Rectangle((0,0.5),3,3,alpha=0.2,color='gray'))
     return fig
     
-def plot_onegroup(dict_group,param_group,group_name):
-    fig=pyplot.figure(figsize=(10,15))
-    #fig,axes=pyplot.subplots(1,1)
-    fig.canvas.manager.set_window_title('popspike vs time for traces of '+group_name)
-    ps=[p['popspikenorm'] for p in dict_group]
-    pstime=[p['popspikeminutes'] for p in dict_group]
-    expername=[p.exper for p in param_group]
-    for expname,index in zip(expername,range(len(ps))):
-        pyplot.plot(pstime[index],ps[index],label=expname)
-    pyplot.legend()
-    fig.canvas.draw()
-    pyplot.show()
+def plot_onegroup(grp,yvars,factors):
+    numcols=len(grp.grp_data.groups.keys())
+    fig,axes=pyplot.subplots(len(yvars),numcols,figsize=(3*numcols,3.5*len(yvars)))
+    axes=fig.axes
+    for row,yvar in enumerate(yvars):
+        for col,group in enumerate(grp.grp_data.groups.keys()):
+            ax=row*numcols+col
+            axes[col].set_title(group_to_word(group))
+            for i in grp.grp_data.get_group(group).index:                
+                xvals=grp.grp_data.get_group(group)['psptime'][i]/60 #convert to minutes
+                yvals=grp.grp_data.get_group(group)[yvar][i]*factors[row] #convert to reasonable units
+                expname=grp.grp_data.get_group(group).exper[i]
+                axes[ax].plot(xvals,yvals,label=expname)
+            ylim=axes[ax].get_ylim()
+            if np.min(ylim)<0:
+                axes[ax].set_ylim([round(ylim[0]),0])
+            elif np.min(ylim)>0:
+                axes[ax].set_ylim([1,round(ylim[1])])
+    for col in range(numcols): #only add xlabel and legend to bottom row
+        axes[row*numcols+col].set_xlabel('time')
+        axes[row*numcols+col].legend()
+    for row,yvar in enumerate(yvars):
+        axes[row*numcols].set_ylabel(yvar)    
+    return fig
 
-def plot_corr(grp,xvar,yvar,samp=1): 
-    fig,axes=pyplot.subplots(len(xvar),1)
+def plot_corr(grp,xvar,yvar,samp=0): 
+    fig,axes=pyplot.subplots(len(xvar),1,figsize=(6,3*len(xvar)))
     axes=fig.axes
     fig.suptitle(yvar+' vs '+' ,'.join(xvar))
     fig.canvas.manager.set_window_title(yvar)
-    for ax,item in enumerate(xvar):
+    for ax,x in enumerate(xvar):
         for group in grp.grp_data.groups.keys():
             yvalues=[grp.grp_data.get_group(group)[yvar].values[i][samp] for i in range(len(grp.grp_data.get_group(group)))]
-            xvals=grp.grp_data.get_group(group)[item].values #replace age with list of params?
+            xvals=grp.grp_data.get_group(group)[x].values 
             plot_line=False
             if np.isnan(yvalues).any() or len(yvalues)<3:
                 print ("plot_corr: Nans in yalues or <3 samples for group:", group,'X:', xvals,'Y:', yvalues)
@@ -119,7 +131,7 @@ def plot_corr(grp,xvar,yvar,samp=1):
             color=p[0].get_color()
             if plot_line:
                 axes[ax].plot(xvals,Aopt+Bopt*xvals,linestyle=':',color=color)
-            axes[ax].set_xlabel(item)
+            axes[ax].set_xlabel(x)
             axes[ax].set_ylabel(yvar)
     for axis in axes:
         axis.legend(fontsize=10, loc='best')
@@ -127,7 +139,7 @@ def plot_corr(grp,xvar,yvar,samp=1):
     pyplot.show()
 
 def plot_IVIF_mean(grp,ivif_dict, plot_vars, x): 
-    fig,axes=pyplot.subplots(len(plot_vars),1,sharex=True)
+    fig,axes=pyplot.subplots(len(plot_vars),1,sharex=True,figsize=(6,3*len(plot_vars)))
     axes=fig.axes
     fig.suptitle(', '.join(plot_vars)+' vs '+ x)
     fig.canvas.manager.set_window_title(x+' - group mean') #FIXME: customize for IO
@@ -154,33 +166,31 @@ def sort_y_by_x(Y,X):
     return newy, newx
 
 def plot_IVIF(grp,yvars,x,units): 
-    figs=[]
+    numcols=len(grp.grp_data.groups.keys())
+    fig,axes=pyplot.subplots(len(yvars),numcols,figsize=(3*numcols,3.5*len(yvars)))
+    fig.canvas.manager.set_window_title(x+' - separate') #FIXME: customize for IO
+    axes=fig.axes
     for fnum,yvar in enumerate(yvars):
-        fig,axes=pyplot.subplots(len(grp.grp_data.groups.keys()),1)
-        figs.append(fig)
-        axes=fig.axes
-        fig.suptitle(yvar+' vs '+x)
-        xlabel=x+' ('+units+')'
-        if units=='pA':
-            conversion=1e12
-        else:
-            conversion=1
-        xlabel=xlabel+units
-        fig.canvas.manager.set_window_title(x+' - separate'+str(fnum)) #FIXME: customize for IO
-        for ax,group in enumerate(grp.grp_data.groups.keys()):
-            labl=group_to_word(group)
+        for col,group in enumerate(grp.grp_data.groups.keys()):
+            ax=fnum*numcols+col
+            axes[col].set_title(group_to_word(group))
+            xlabel=x+' ('+units+')'
+            if units=='pA':
+                conversion=1e12
+            else:
+                conversion=1
             for ii in grp.grp_data.get_group(group).index:
                 yvalues=grp.grp_data.get_group(group)[yvar][ii]
                 xvals=grp.grp_data.get_group(group)[x][ii]*conversion
                 yvalues,xvals=sort_y_by_x(yvalues,xvals) #sort x and y values by ordering x values
                 axes[ax].plot(xvals,yvalues,label=grp.grp_data.get_group(group)['exper'][ii])
-                axes[ax].set_ylabel(yvar+' '+labl)
-            axes[ax].set_xlabel(xlabel)
-        for axis in axes:
-                axis.legend(fontsize=10, loc='best')
-        fig.canvas.draw()
-        pyplot.show()
-    return figs
+    for col in range(numcols): #only add xlabel and legend to bottom row
+        axes[fnum*numcols+col].set_xlabel(xlabel)
+        axes[fnum*numcols+col].legend(fontsize=10, loc='best')
+    for fnum,yvar in enumerate(yvars):
+        axes[fnum*numcols].set_ylabel(yvar)
+    pyplot.show()
+    return fig
 
 def form_clusters(xvars, eps,conversion):
     all_xvals=[]
