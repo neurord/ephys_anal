@@ -67,6 +67,7 @@ class GrpPatch:
             with open(outfname, 'rb') as f:
                 datadict = np.load(f,allow_pickle=True)
                 data=datadict['data'].item()
+                # Experimental parameters
                 exper_param=datadict['params'].item()
                 if exper_param['exper']=='250812_2':
                     exper_param['ID']='250530-B7-F2L' #not 250529-B9-F2L, wrong animal ID entered in metadata during experiment
@@ -82,9 +83,12 @@ class GrpPatch:
                     exper_param['age']=(exper_date-birth_date).days
                 else: 
                     exper_param['age']=int(exper_param['age'])
+                #traces, IV_IV curves
                 traces=datadict['trace'].item()
                 IV_IF=datadict['IV_IF'].item()
-                anal_params=datadict['anal_params'].item() #use if need to re-analyze experiment
+                #analysis parameters. use if need to re-analyze experiment
+                anal_params=datadict['anal_params'].item() 
+                #IO curves
                 if 'IO' in datadict.keys():
                     IO=datadict['IO'].item()
                 else:
@@ -93,7 +97,7 @@ class GrpPatch:
                 print_params={k:v for k,v in exper_param.items() if not isinstance(v,dict) or k=='celltype'}
             if self.print_info and 'slope' in data.keys():
                 print ("file read:", print_params,", baseline slope=", [round(sl,6) for sl in data['slope'].values()])
-            ########## identify experiments that do not meet includsion criteria ##########
+            ########## identify experiments that do not meet includsion criteria, extract values for single cell/headstage ##########
             for hs in celltype.keys():
                 numnan=sum(np.isnan(traces['normPSP'][hs]))
                 cell_param=self.extract_params(exper_param,hs,data)
@@ -302,6 +306,17 @@ class GrpPatch:
             self.samples[grp]=count
             self.minutes[grp]=grp_utl.exp_avg(self.grp_data.get_group(grp)[xvar])[0]/SEC_PER_MIN
     
+    def stable_recording(self,yvars):
+        for yvar in yvars:
+            for ii in self.whole_df.index:
+                yvals=self.whole_df[yvar][ii]
+                induct_index=np.where(self.whole_df.psptime[ii]>0)[0][0] #first index of first item
+                meany=np.mean(yvals[0:induct_index])
+                deltay=yvals/meany
+                if np.any(deltay>1.2) or np.any(deltay<0.8):
+                    bad=np.concatenate((np.where(deltay>1.2)[0],np.where(deltay<0.8)[0]))
+                    print(yvar,' changing by more than 20% for sample', ii, 'exper',self.whole_df.exper[ii], ',time:',self.whole_df.psptime[ii][bad]/60)
+
     ########################### FIXME: Edit this according to exclusion criteria that are adopted ################
     def plot_bad(self):
         if len(self.BAD):
@@ -439,6 +454,7 @@ if __name__ =='__main__':
         grp.read_data()
         grp_utl.read_IDfile(grp,'Sample',['Status']) #'Sample' has the unique identifier, ['Status'] is list of independent variables, e.g., sex, genotype to be added to df
         grp.ignore()
+        grp.stable_recording(['RMP','Raccess'])
         grp.plot_bad()
         grp.group_data('psptime','normPSP') 
         if int(params.plot_ctrl[1])>0:
@@ -447,6 +463,7 @@ if __name__ =='__main__':
             plot_cols=None
         if int(params.plot_ctrl[0]):
             fig=grp_utl.plot_groups(grp.avg_PSP,grp.stderr_PSP,grp.minutes,grp.samples,grp.common_filnm,grp.sepvarlist,plot_cols)
+            fig2=grp_utl.plot_onegroup(grp,['Raccess','RMP'],[1e-6,1e3]) #convert to Mohm, mV
         grp.write_traces() 
         grp.write_stat_data() 
         grp.bar_graph_data(exclude_name)
@@ -459,13 +476,9 @@ if __name__ =='__main__':
                 grp_utl.plot_IVIF(grp,yvars, xvar,units) 
                 grp_utl.plot_IVIF_mean(grp,i_dict,yvars, xvar) 
         if int(params.plot_ctrl[2]):
-            grp_utl.plot_corr(grp,['age'],'PSPsamples') 
-
+            grp_utl.plot_corr(grp,['age','time_to_induct'],'PSPsamples') 
     #
     ########## NEXT STEPS: ################
-    # 1. IVIF params in PARAMSforStats: rheobase - eliminate one, max_latency
-    # 2. evaluate series resistance
-    #   
     # 3. extract Number of spikes during induction to use in corr plots?  After saving in patch Anal
     ### IF needed, can add back in newcolumn_name - to take care of drug concentration - from GrpAvgPopSpikeClass
 
