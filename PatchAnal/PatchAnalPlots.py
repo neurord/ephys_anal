@@ -17,7 +17,7 @@ def rows_columns(n):
     cols,rows=factors[index]
     return cols,rows
 
-def trace_plot(exp): #plot traces, for visual inspection / verify analysis
+def trace_plot(exp,ss_color='gray'): #plot traces, for visual inspection / verify analysis
     colors=pyplot.get_cmap('plasma')
     partial_scale=0.9 #avoid the very light 
     offset=1 #in mV, to visualize multiple traces
@@ -39,7 +39,16 @@ def trace_plot(exp): #plot traces, for visual inspection / verify analysis
                 yval=(exp.pspamp[headstage][trace_num]+exp.RMP[headstage][trace_num])*MV_PER_V +trace_num*offset
                 xval=time[int(exp.peaktime[headstage][trace_num]/exp.dt)]
                 axes.plot(xval,yval, 'ko')
-                axes.plot(time[exp.basestartpt],exp.RMP[headstage][trace_num]*MV_PER_V+trace_num*offset, 'kx')
+                hyper_Vm=-exp.Raccess[headstage][trace_num]*np.mean(exp.Iaccess)+exp.RMP[headstage][trace_num]
+                if ss_color:
+                    base_size=len(time[exp.hyper_endpt:exp.base_endpt])
+                    hyper_size=len(time[exp.hyperstartpt:exp.hyper_endpt])
+                    hyper_Vm=-exp.Raccess[headstage][trace_num]*np.mean(exp.Iaccess)+exp.RMP[headstage][trace_num]
+                    axes.plot(time[exp.hyper_endpt:exp.base_endpt],np.full(base_size,exp.RMP[headstage][trace_num]*MV_PER_V+trace_num*offset),ss_color)
+                    axes.plot(time[exp.hyperstartpt:exp.hyper_endpt],np.full(hyper_size,hyper_Vm*MV_PER_V+trace_num*offset),ss_color)
+                else:
+                    axes.plot(time[exp.basestartpt],exp.RMP[headstage][trace_num]*MV_PER_V+trace_num*offset, 'kx')
+                    axes.plot(time[exp.hyperstartpt],hyper_Vm*MV_PER_V+trace_num*offset,'kx')
                 trace_num+=1
             axes.set_title('o = peak, x =baseline')
             axes.set_xlabel('Time (s)')
@@ -97,16 +106,21 @@ def IVIF_measures(exp):
     return
 
 def summary_plot(exp):
-    fig,axes=pyplot.subplots()
+    fig,axes=pyplot.subplots(2,1)
+    axes=fig.axes
     fig.canvas.manager.set_window_title('Summary '+exp.params['exper'])
     for h,color in zip(exp.pspamp.keys(),['b','r']):
         psp_minutes=(exp.psptime[h])/SEC_PER_MIN #start from 0, convert from sec to min
-        axes.plot(psp_minutes,exp.normpsp[h],color=color,marker='.',linestyle='None',label=h)
-        axes.plot(psp_minutes[0:exp.num_pre],line(exp.psptime[h][0:exp.num_pre],exp.Aopt[h]/exp.meanpre[h],exp.Bopt[h]/exp.meanpre[h]),color=color,alpha=0.5)
+        axes[0].plot(psp_minutes,exp.normpsp[h],color=color,marker='.',linestyle='None',label=h)
+        axes[0].plot(psp_minutes[0:exp.num_pre],line(exp.psptime[h][0:exp.num_pre],exp.Aopt[h]/exp.meanpre[h],exp.Bopt[h]/exp.meanpre[h]),color=color,alpha=0.5)
         nan_list(psp_minutes,exp.normpsp[h],1.0,axes,h)
-        axes.set_xlabel('Time (minutes)')
-        axes.set_ylabel ('Normalized PSP amplitude ')
-    axes.legend()
+        axes[0].set_ylabel ('Normalized PSP amplitude ')
+        axes[0].legend()
+        #Now plot RMP and Raccess
+        axes[1].plot(psp_minutes,-exp.RMP[h]*MV_PER_V,color=color,marker='.',linestyle='None',label=h+' -RMP (mV)')
+        axes[1].plot(psp_minutes,exp.Raccess[h]/1e6,color=color,marker='x',linestyle='None',label=h+' Raccess (MOhm)')
+        axes[-1].set_xlabel('Time (minutes)')
+        axes[1].legend()
     fig.show()
 
 def induction_plot(exp,stim_time=[]): #plot traces, for visual inspection / verify analysis
