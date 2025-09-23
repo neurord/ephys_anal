@@ -275,11 +275,11 @@ class GrpPatch:
             self.samples[grp]=count
             self.minutes[grp]=grp_utl.exp_avg(self.grp_data.get_group(grp)[xvar])[0]/SEC_PER_MIN
     
-    def exclusion_criteria(self,yvars,allowable_change):
+    def exclusion_criteria(self,yvar_dict):
         from itertools import groupby 
         num_traces=[len(x) for x in self.whole_df['Raccess']]
         self.whole_df['num_traces']=num_traces
-        for yvar,change in zip(yvars,allowable_change):
+        for yvar,change in yvar_dict.items():
             for ii in self.whole_df.index:
                 yvals=self.whole_df[yvar][ii][0:self.whole_df['num_traces'][ii]]
                 if not np.all(yvals==np.nan):
@@ -417,7 +417,7 @@ class GrpPatch:
         return filnm      
 
 if __name__ =='__main__':        
-    #ARGS = "Surgery_record -plot_ctrl 110"      #-sex FC -age 75
+    ARGS = "Surgery_record -plot_ctrl 110"      #-sex FC -age 75
     exclude_name=[] #['theta'] #use to exclude variable(s) from column name in _points files	        
     try:
         commandline = ARGS.split() #in python: define space-separated ARGS string
@@ -438,8 +438,7 @@ if __name__ =='__main__':
         grp.read_data()
         grp_utl.read_IDfile(grp,'Sample',['Status']) #'Sample' has the unique identifier, ['Status'] is list of independent variables, e.g., sex, genotype to be added to df
         grp.ignore()
-        #grp.exclusion_criteria(['RMP','Raccess','dV_2ms'],[0.2,0.4,0.3])
-        grp.exclusion_criteria(['RMP','Raccess'],[0.2,0.4])
+        grp.exclusion_criteria({'RMP':0.2,'Raccess': 0.4}) #,'dV_2ms':0.3})
         grp_utl.plot_bad(grp)
         grp.group_data('psptime','normPSP') 
         if int(params.plot_ctrl[1])>0:
