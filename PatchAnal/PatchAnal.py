@@ -283,6 +283,7 @@ class PatchAnal():
         self.RMP={headstage:np.zeros(self.num_traces[headstage]) for headstage in self.headstages} #resting membrane potential
         self.hyper={headstage:np.zeros(self.num_traces[headstage]) for headstage in self.headstages} #hyperpolarization value (testing access resistance)
         self.Raccess={headstage:np.zeros(self.num_traces[headstage]) for headstage in self.headstages} #hyper/Iaccess
+        self.dV_2ms={headstage:np.zeros(self.num_traces[headstage]) for headstage in self.headstages} #hyper/Iaccess
         self.normpsp={headstage:np.zeros(self.num_traces[headstage]) for headstage in self.headstages } #PSP normalized to baseline mean
 
         ####################################### Next Steps ###############################
@@ -548,7 +549,8 @@ class PatchAnal():
             self.anal_params['hyperstart']=self.hyperstart
             self.params['Iaccess']=self.Iaccess[0]
             print('Access Monitor: V onset: {:g} and {:.5f} s, V offset: {:g} , inject {:.1f} pA'.format(Vtimepoints[-2],self.hyperstart, self.hyper_endpt,self.Iaccess[0]*1e12))
-            
+            return Vtimepoints
+        
         if len(self.induction_time):
             induct_time=self.induction_time[0]
         else:
@@ -558,9 +560,9 @@ class PatchAnal():
             for r in self.Vm_psp[headstage].keys():
                 self.dt=self.get_dt(self.psp_dict[r])
                 routine_start,routine_name=self.get_routine_start(r)
-                #determine time and value of hyperpolarizing pulses
+                #determine time and value of hyperpolarizing pulses - two pulses detected
                 timepoints,inject=self.find_inject(r)
-                access_monitor(timepoints,inject, self.dt, r)
+                Vtimepoints=access_monitor(timepoints,inject, self.dt, r)
                 if isinstance(self.PSPstart,dict): #if PSPstart extracted from notebook file
                     self.PSPstartpt=int(self.PSPstart[routine_name]/self.dt)                    
                 else: #if no notebook file
@@ -569,6 +571,7 @@ class PatchAnal():
                     print('********* PSP start time', self.PSPstart,' is after end of trace.  Make start time earlier ***********')
                 self.basestartpt=self.PSPstartpt-int(self.basestart/self.dt)  #basestart is duration prior to event 
                 self.base_endpt=self.basestartpt+int(self.base_dur/self.dt)
+                inj2ms=inject[timepoints[1]]-inject[timepoints[0]]
                 for num in range(np.shape(self.data['Data'][r].__array__())[-1]):  #num indexes arrays - resets to zero for each routine
                     trace=self.data['Data'][r].__array__()[:,num] 
                     self.psp[headstage][trace_num],self.RMP[headstage][trace_num],peakpt=self.psp_detect(r,num,self.dt,self.PSPstartpt)
@@ -580,6 +583,9 @@ class PatchAnal():
                         self.psptime[headstage][trace_num]=routine_start+num*self.params['Stim_interval'][routine_name]-induct_time
                     #### Potential Problem: use RMP from beginning of trace as RMP 1/5 sec later.
                     self.Raccess[headstage][trace_num]=(self.RMP[headstage][trace_num]-np.mean(trace[self.hyperstartpt:self.hyper_endpt]))/self.Iaccess[num]
+                    if len(Vtimepoints)>=4:
+                        self.anal_params['dV_2ms_time']=((Vtimepoints[0]+1)*self.dt, (Vtimepoints[1]+2)*self.dt) #add 1 point to account for deriv, 1 point for current to actually stop
+                        self.dV_2ms[headstage][trace_num]=(trace[Vtimepoints[1]+2]-trace[Vtimepoints[0]+1]) #/inj2ms
                     trace_num+=1
 
     def psp_detect(self, r, num, dt, stim_start):
@@ -665,7 +671,7 @@ class PatchAnal():
     def write_data(self):
         outfname=self.outputdir+self.experiment
         data_dict={'slope':self.Bopt, 'Intercept':self.Aopt,'slope_std':self.Bstd,'meanpre':self.meanpre,'max_latency':self.max_latency,'rheobase':self.rheobase,'psp_dt':self.dt, 'num_pre':self.num_pre} #single values
-        tracedict={'amp':self.pspamp,'RMP':self.RMP, 'Raccess': self.Raccess,'normPSP': self.normpsp,'psptime':self.psptime,'peaktime':self.peaktime} #arrays
+        tracedict={'amp':self.pspamp,'RMP':self.RMP, 'Raccess': self.Raccess,'normPSP': self.normpsp,'psptime':self.psptime,'peaktime':self.peaktime,'dV_2ms':self.dV_2ms} #arrays
         IV_IFsummary={'IV':self.IV_IF,'spikes':self.IV_IF_spikes,'dt':self.IV_dt} #analysis of IV_IF routines
         IOsummary={'amp':self.IOamp}
         if len(self.induction_list):
@@ -701,13 +707,12 @@ if __name__=='__main__':
     if exp.graphs:
         pu.IVIF_plot(exp)
         pu.IVIF_measures(exp)
-        pu.trace_plot(exp)
+        pu.trace_plot(exp) #set ss_color='k' if you want black, etc.  set ss_color=None to turn off lines
         pu.summary_plot(exp)
         pu.IO_plot(exp)
         if len(exp.induction_list):
             pu.induction_plot(exp,stim_time)
     print('time to induction=', round(exp.params['time_to_induct']/60,2),'min')
 
-    ########## NEXT STEPS: ################
-    #### Debug with additional data
+
 

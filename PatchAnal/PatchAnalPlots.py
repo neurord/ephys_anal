@@ -47,10 +47,12 @@ def trace_plot(exp,ss_color='gray'): #plot traces, for visual inspection / verif
                     axes.plot(time[exp.hyper_endpt:exp.base_endpt],np.full(base_size,exp.RMP[headstage][trace_num]*MV_PER_V+trace_num*offset),ss_color)
                     axes.plot(time[exp.hyperstartpt:exp.hyper_endpt],np.full(hyper_size,hyper_Vm*MV_PER_V+trace_num*offset),ss_color)
                 else:
-                    axes.plot(time[exp.basestartpt],exp.RMP[headstage][trace_num]*MV_PER_V+trace_num*offset, 'kx')
-                    axes.plot(time[exp.hyperstartpt],hyper_Vm*MV_PER_V+trace_num*offset,'kx')
+                    axes.plot(time[exp.basestartpt],exp.RMP[headstage][trace_num]*MV_PER_V+trace_num*offset, 'x',color='gray')
+                    axes.plot(time[exp.hyperstartpt],hyper_Vm*MV_PER_V+trace_num*offset,'x',color='gray')
+                axes.plot(exp.anal_params['dV_2ms_time'][1]+exp.dt,exp.dV_2ms[headstage][trace_num]*MV_PER_V+trace[int(exp.anal_params['dV_2ms_time'][0]/exp.dt)]+trace_num*offset,'r+')
+                axes.plot(exp.anal_params['dV_2ms_time'][0]+exp.dt,trace[int(exp.anal_params['dV_2ms_time'][0]/exp.dt)]+trace_num*offset,'r+')
                 trace_num+=1
-            axes.set_title('o = peak, x =baseline')
+            axes.set_title('o = peak, x =baseline, +=2 ms pulse')
             axes.set_xlabel('Time (s)')
             axes.set_ylabel('Vm (mV)')
             axes.legend()
@@ -119,6 +121,7 @@ def summary_plot(exp):
         #Now plot RMP and Raccess
         axes[1].plot(psp_minutes,-exp.RMP[h]*MV_PER_V,color=color,marker='.',linestyle='None',label=h+' -RMP (mV)')
         axes[1].plot(psp_minutes,exp.Raccess[h]/1e6,color=color,marker='x',linestyle='None',label=h+' Raccess (MOhm)')
+        axes[1].plot(psp_minutes,-exp.dV_2ms[h]*MV_PER_V,color=color,marker='+',linestyle='None',label=h+' dV_2ms (mV)')
         axes[-1].set_xlabel('Time (minutes)')
         axes[1].legend()
     fig.show()
