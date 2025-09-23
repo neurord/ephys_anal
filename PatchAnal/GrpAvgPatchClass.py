@@ -9,6 +9,9 @@ import sys
 import pandas as pd 
 pd.set_option('display.width', 1000)
 pd.set_option('display.max_colwidth', 100)
+import warnings
+warnings.simplefilter("ignore")#, category=FutureWarning)
+
 import glob
 import os
 print (os.getcwd())
@@ -35,7 +38,7 @@ class GrpPatch:
         self.plot_individuals=int(params.plot_ctrl[1])  #to plot PSP vs time for each experiment in a group
         self.plot_corr=int(params.plot_ctrl[2]) #to plot correlation between LTP and age or baseline epsp
         #additional parameters.  FIXME: add to arg parser
-        self.minimum_sweeps=10#20 #5 min pre and 15 min follow-up
+        self.minimum_time=20#20 #5 min pre and 15 min follow-up
         self.slope_threshold=params.slope_thresh #fraction of change per sec.  Same as .0012 /minute or .036 in 30 min.
         self.nan_threshold=10 
         self.baseline_min=0#0.4
@@ -57,7 +60,6 @@ class GrpPatch:
         return newdate
 
     def read_data(self): 
-        self.BAD = {}
         DATAS = []
         PARAMS = []
         ANAL_PARAMS=[]
@@ -110,51 +112,15 @@ class GrpPatch:
                 #### Recalculate slope using entire baseline
                 Aopt,Bopt,Bstd=self.new_slope(traces['amp'][hs],traces['psptime'][hs],stim_interval,induct_index)#,data['num_pre'])
                 cell_param['slope10']=Bopt;cell_param['slope10_std']=Bstd;cell_param['Intercept10']=Aopt
-                exclude = ((len(traces['normPSP'][hs])<self.minimum_sweeps) or
-                                (np.abs(data['slope'][hs])>self.slope_threshold) or
-                                (np.abs(data['slope'][hs])-self.slope_std_factor*data['slope_std'][hs]>0) or
-                                #### Use slope determined from normPSP averaged over 1 minute
-                                #(np.abs(cell_param['slope10'])>self.slope_threshold) or
-                                #(np.abs(cell_param['slope10'])-self.slope_std_factor*cell_param['slope10_std']>0) or
-                                numnan>self.nan_threshold or #do not use trace if too many missing popspikes
-                                np.mean(data['meanpre'][hs])<self.baseline_min) #do not use if baseline psp is too small
-                #If slope using all 10 minutes is bad, check the 5 min slope
-                '''if (np.abs(cell_param['slope10'])>self.slope_threshold) or \
-                        (np.abs(cell_param['slope10'])-self.slope_std_factor*cell_param['slope10_std']>0):
-                    if (np.abs(data['slope'][hs])>self.slope_threshold) or \
-                                (np.abs(data['slope'][hs])-self.slope_std_factor*data['slope_std'][hs]>0):
-                        exclude=True'''
-                if exclude: #print information message as to why experiment begin excluded
-                    if len(traces['normPSP'][hs])<self.minimum_sweeps:
-                        print ("!!!NOT ENOUGH goodtraces", exper_param['exper'], hs, len(traces['normPSP'][hs]))
-                    elif data['meanpre'][hs]<self.baseline_min:
-                        print ("!!!PSP amp too low", exper_param['exper'], hs, data['meanpre'][hs])
-                    elif numnan>self.nan_threshold:
-                        print('!!! Too many Nans',exper_param['exper'], hs, numnan)
-                    elif np.abs(cell_param['slope'])>self.slope_threshold or (np.abs(cell_param['slope'])-self.slope_std_factor*cell_param['slope_std']>0):
-                        print ("!!! BAD 5 min baseline", exper_param['exper'], hs, "5 min slope u,s", round(cell_param['slope'],7),round(cell_param['slope_std'],7))
-                        if np.abs(cell_param['slope10'])>self.slope_threshold or (np.abs(cell_param['slope10'])-self.slope_std_factor*cell_param['slope10_std']>0):
-                            print ("BAD 10 min baseline also: ", round(cell_param['slope10'],7),round(cell_param['slope10_std'],7))
-                        else:
-                            print(" 10 min baseline is OK:", round(cell_param['slope10'],7),round(cell_param['slope10_std'],7))
-                    #add experiment to BAD to plot later
-                    self.BAD[exper_param['exper']+'_'+hs]={'normPSP':celltrace['normPSP'],'psptime':celltrace['psptime'], 'meanpre':data['meanpre'][hs],
-                                                        'params':{'celltype':celltype[hs],'age':exper_param['age'],'drug':exper_param['drug'],'region':exper_param['region']},
-                                                        'slope':cell_param['slope'],'slope_std':cell_param['slope_std'], 'Intercept':cell_param['Intercept'],
-                                                        'slope10':Bopt,'slope10_std':Bstd,'Intercept10':Aopt}
-                    if self.print_info:
-                        print ("***** excluding:", exper_param['exper']+'_'+hs)
-                    next 
-                else: #data meets all criteria
-                    if np.isnan(traces['normPSP'][hs]).any(): #inform about nans, even if using data
-                        print ("########## np.nan detected", numnan,'times in',exper_param['exper']+'_'+hs)
-                    if traces['normPSP'][hs][-1]==0.0: #last response is 0, why????
-                        print ("@@@@@@@@@ check PatchAnal for", exper_param['exper']+'_'+hs)
-                    PARAMS.append(cell_param)
-                    DATAS.append(celltrace)                    
-                    IVIFset.append(self.IVIFdata(IV_IF,hs,cell_param))
-                    IOset.append({'IOamp':IO['amp'][hs]}) 
-                    ANAL_PARAMS.append(anal_params)       
+                if np.isnan(traces['normPSP'][hs]).any(): #inform about nans, even if using data
+                    print ("########## np.nan detected", numnan,'times in',exper_param['exper']+'_'+hs)
+                if traces['normPSP'][hs][-1]==0.0: #last response is 0, why????
+                    print ("@@@@@@@@@ check PatchAnal for", exper_param['exper']+'_'+hs)
+                PARAMS.append(cell_param)
+                DATAS.append(celltrace)                    
+                IVIFset.append(self.IVIFdata(IV_IF,hs,cell_param))
+                IOset.append({'IOamp':IO['amp'][hs]}) 
+                ANAL_PARAMS.append(anal_params)       
         dfdata = pd.DataFrame(DATAS)
         dfparams=pd.DataFrame(PARAMS)
         dfparams.drop(['max_latency','rheobase'],inplace=True,axis=1)
@@ -183,6 +149,9 @@ class GrpPatch:
         if self.params.drug:
             self.whole_df = self.whole_df[self.whole_df.drug == self.params.drug]
             print('ignoring experiments with drug not ',self.params.drug)
+        if self.params.celltype:
+            self.whole_df = self.whole_df[self.whole_df.celltype == self.params.celltype]
+            print('ignoring experiments with drug not ',self.params.celltype)
 
     def new_slope(self,normPSP,time,stim_interval,induct_index,num_pre=None,base_time=None):
         if num_pre:
@@ -306,52 +275,67 @@ class GrpPatch:
             self.samples[grp]=count
             self.minutes[grp]=grp_utl.exp_avg(self.grp_data.get_group(grp)[xvar])[0]/SEC_PER_MIN
     
-    def stable_recording(self,yvars):
-        for yvar in yvars:
+    def exclusion_criteria(self,yvars,allowable_change):
+        from itertools import groupby 
+        num_traces=[len(x) for x in self.whole_df['Raccess']]
+        self.whole_df['num_traces']=num_traces
+        for yvar,change in zip(yvars,allowable_change):
             for ii in self.whole_df.index:
-                yvals=self.whole_df[yvar][ii]
-                induct_index=np.where(self.whole_df.psptime[ii]>0)[0][0] #first index of first item
-                meany=np.mean(yvals[0:induct_index])
-                deltay=yvals/meany
-                if np.any(deltay>1.2) or np.any(deltay<0.8):
-                    bad=np.concatenate((np.where(deltay>1.2)[0],np.where(deltay<0.8)[0]))
-                    print(yvar,' changing by more than 20% for sample', ii, 'exper',self.whole_df.exper[ii], ',time:',self.whole_df.psptime[ii][bad]/60)
-
-    ########################### FIXME: Edit this according to exclusion criteria that are adopted ################
-    def plot_bad(self):
-        if len(self.BAD):
-            fig,axes=pyplot.subplots(2,1)
-            fig.canvas.manager.set_window_title('Problems')
-            axes[0].set_ylabel('PSP baseline-bad slope or psp amp')
-            axes[1].set_ylabel('PSP-nans')
-            axes[1].set_xlabel('Time (min)')
-            for exper,bad_data in self.BAD.items(): 
-                time=bad_data['psptime']/SEC_PER_MIN
-                if sum(np.isnan(bad_data['normPSP']))>self.nan_threshold:
-                    ### instead of plotting here, should put in separate container to plot later
-                    print ("########## np.nan detected", exper)
-                    p=axes[1].plot(time,bad_data['normPSP'],'+', label=exper)
-                    color = p[-1].get_color()
-                    nan_index=np.argwhere(np.isnan(bad_data['normPSP']))
-                    axes[1].plot(time[nan_index],np.ones((len(nan_index))),'o', color=color)
-                elif np.abs(bad_data['slope'])>self.slope_threshold or (np.abs(bad_data['slope'])-self.slope_std_factor*bad_data['slope_std']>0):
-                    print("bad baseline", exper, "slope",round( bad_data['slope'],7), "+/-", round(bad_data['slope_std'],7))
-                    p=axes[0].plot(time,bad_data['normPSP'],'-', label=exper)
-                    color = p[-1].get_color()
-                    #FIXME: this does not plot correct 5 min line when NOT aligning induction with time=0
-                    axes[0].plot(time,bad_data['Intercept']/bad_data['meanpre']+bad_data['slope']*(SEC_PER_MIN/bad_data['meanpre'])*time,linestyle=':', color=color)
-                    axes[0].plot(time,bad_data['Intercept10']/bad_data['meanpre']+bad_data['slope10']*(SEC_PER_MIN/bad_data['meanpre'])*time,linestyle='-.', color=color)
+                yvals=self.whole_df[yvar][ii][0:self.whole_df['num_traces'][ii]]
+                if not np.all(yvals==np.nan):
+                    induct_index=np.where(self.whole_df.psptime[ii]>0)[0][0] #first index of first item
+                    meany=np.mean(yvals[0:induct_index])
+                    deltay=yvals[induct_index:]/meany-1  #Normalize change and subtract 1 - value of 0 is no change
+                    if np.any(deltay>change) or np.any(deltay<-change): #e.g. > 0.2 or < -0.2
+                        bad=np.concatenate((np.where(deltay>change)[0],np.where(deltay<-change)[0]))+induct_index
+                        print(yvar,' changing by more than',round(change*100), '% for exper',self.whole_df.exper[ii], ',', len(bad), 'samples at times:',self.whole_df.psptime[ii][bad]/60)
+                        if bad[-1] == len(deltay)+induct_index-1: 
+                            #reduce num_traces; exclude last and all consecutive
+                            #Next four lines groups the list of bad traces into consecutive groups
+                            groups=[]
+                            for k, g in groupby(enumerate(bad), lambda x : x[0] - x[1]): 
+                                groups.append(list(g))
+                            bad_end=[x[1] for x in groups[-1]] #last consecutive group, which includes the final trace
+                            print('     Will reduce number of valid traces by ', len(bad_end))
+                            self.whole_df.loc[ii,'num_traces']= self.whole_df['num_traces'][ii]-len(bad_end)
+        #remove the measurements associated with the bad traces at the end
+        for ii in self.whole_df.index:
+            if len(self.whole_df[yvar].loc[ii]) > self.whole_df['num_traces'][ii]:
+                print('********** Removing',len(self.whole_df[yvar].loc[ii]) - self.whole_df['num_traces'][ii], 'samples (bad data) from end of traces for', self.whole_df.exper.loc[ii])
+                for yvar in ['normPSP','psptime','peaktime','Raccess','amp','RMP']:
+                    self.whole_df[yvar].loc[ii]=self.whole_df[yvar].loc[ii][0:self.whole_df['num_traces'][ii]]
+        bad_index={'slope':[],'nan':[],'num_traces':[],'meanpre':[]} #list of row indices for experiments to exclude
+        for ii in self.whole_df.index:
+            if np.abs(self.whole_df['slope'][ii])>self.slope_threshold or (np.abs(self.whole_df['slope'][ii])-self.slope_std_factor*self.whole_df['slope_std'][ii]>0):
+                print ("!!! BAD 5 min baseline", self.whole_df['exper'][ii], "5 min slope u,s", round(self.whole_df['slope'][ii],7),round(self.whole_df['slope_std'][ii],7))
+                if np.abs(self.whole_df['slope10'][ii])>self.slope_threshold or (np.abs(self.whole_df['slope10'][ii])-self.slope_std_factor*self.whole_df['slope10_std'][ii]>0):
+                    print ("BAD 10 min baseline also: ", round(self.whole_df['slope10'][ii],7),round(self.whole_df['slope10_std'][ii],7))
                 else:
-                    print("PSP amp too low or insufficient traces", exper,'numnan=',sum(np.isnan(bad_data['normPSP']),'psp amp=', bad_data['meanpre']))
-                    p=axes[0].plot(time,bad_data['normPSP'],'--', label=exper)
-                if bad_data['normPSP'][-1]==0.0:
-                    print ("@@@@@@@@@ normPSP is 0, check PatchAnal for", exper)
-                    #print 'OK: {}'.format(exper_param)
-                print(bad_data['params'])
-            axes[0].set_title('dotted: 5 min slope, dot-dash: 10 min slope')       
-            axes[0].legend(fontsize=8, loc='best')
-            axes[1].legend(fontsize=8, loc='best')
-            fig.canvas.draw()
+                    print(" 10 min baseline is OK:", round(self.whole_df['slope10'][ii],7),round(self.whole_df['slope10_std'][ii],7))
+                bad_index['slope'].append(ii)
+            if self.whole_df.psptime.iloc[ii][self.whole_df.num_traces.iloc[ii]-1]/SEC_PER_MIN <=self.minimum_time: #need 20 min of recording to be valid
+                print ("!!! NOT ENOUGH goodtraces", self.whole_df['exper'][ii], 'ending at',round(self.whole_df.psptime.iloc[ii][self.whole_df.num_traces.iloc[ii]-1]/SEC_PER_MIN,2), 'min')
+                bad_index['num_traces'].append(ii)
+            elif self.whole_df['meanpre'][ii]<self.baseline_min:
+                print ("!!! PSP amp too low", self.whole_df['exper'][ii], 'only', self.whole_df['meanpre'][ii])
+                bad_index['meanpre'].append(ii)
+            elif sum(np.isnan(self.whole_df['normPSP'][ii])) > self.nan_threshold:
+                print('!!! Too many Nans',self.whole_df['exper'][ii], sum(np.isnan(self.whole_df['normPSP'][ii])))
+                bad_index['nan'].append(ii)
+        self.remove_bad(bad_index)
+
+    def remove_bad(self,bad_index):
+        self.bad_df=pd.DataFrame(columns=self.whole_df.columns)
+        reason={}
+        for key,indices in bad_index.items():
+            for ii in indices:
+                row=self.whole_df.loc[ii]
+                self.bad_df.loc[len(self.bad_df)]=row
+                reason[row['exper']]=key
+                self.whole_df.drop(index=ii,inplace=True)
+        self.bad_df['reason']=self.bad_df['exper'].map(reason)
+
+        #possibility 2: if a single change in the middle of follow-up, exclude that one point
 
     def write_stat_data(self):
         SASoutput = self.whole_df[self.single_params] #in to a 2d array you write it into SASoutput. 
@@ -433,7 +417,7 @@ class GrpPatch:
         return filnm      
 
 if __name__ =='__main__':        
-    #ARGS = "Surgery_record -plot_ctrl 111"      #-sex FC -age 75
+    #ARGS = "Surgery_record -plot_ctrl 110"      #-sex FC -age 75
     exclude_name=[] #['theta'] #use to exclude variable(s) from column name in _points files	        
     try:
         commandline = ARGS.split() #in python: define space-separated ARGS string
@@ -454,8 +438,9 @@ if __name__ =='__main__':
         grp.read_data()
         grp_utl.read_IDfile(grp,'Sample',['Status']) #'Sample' has the unique identifier, ['Status'] is list of independent variables, e.g., sex, genotype to be added to df
         grp.ignore()
-        grp.stable_recording(['RMP','Raccess'])
-        grp.plot_bad()
+        #grp.exclusion_criteria(['RMP','Raccess','dV_2ms'],[0.2,0.4,0.3])
+        grp.exclusion_criteria(['RMP','Raccess'],[0.2,0.4])
+        grp_utl.plot_bad(grp)
         grp.group_data('psptime','normPSP') 
         if int(params.plot_ctrl[1])>0:
             plot_cols=int(params.plot_ctrl[1])

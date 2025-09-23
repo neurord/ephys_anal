@@ -5,6 +5,8 @@ from matplotlib import gridspec
 from scipy import optimize
 from PatchAnalPlots import line
 
+SEC_PER_MIN =60
+
 ######## This function calculates averages across experiments
 def exp_avg(datas, datatype=None,somethreshold=999e6):
     if not datatype:
@@ -90,8 +92,8 @@ def plot_onegroup(grp,yvars,factors):
         for col,group in enumerate(grp.grp_data.groups.keys()):
             ax=row*numcols+col
             axes[col].set_title(group_to_word(group))
-            for i in grp.grp_data.get_group(group).index:                
-                xvals=grp.grp_data.get_group(group)['psptime'][i]/60 #convert to minutes
+            for i in grp.grp_data.get_group(group).index:
+                xvals=grp.grp_data.get_group(group)['psptime'][i]/SEC_PER_MIN  #convert to minutes
                 yvals=grp.grp_data.get_group(group)[yvar][i]*factors[row] #convert to reasonable units
                 expname=grp.grp_data.get_group(group).exper[i]
                 axes[ax].plot(xvals,yvals,label=expname)
@@ -106,6 +108,36 @@ def plot_onegroup(grp,yvars,factors):
     for row,yvar in enumerate(yvars):
         axes[row*numcols].set_ylabel(yvar)    
     return fig
+
+def plot_bad(grp):
+    reasons={'nan':'too many nans','slope': 'bad slope','num_traces': 'too few follow-up traces','meanpre': 'baseline psp too small'}
+    groups=list(np.unique(grp.bad_df.reason))
+    fig,axes=pyplot.subplots(len(groups),1,figsize=(5,3.0*len(groups)))
+    fig.canvas.manager.set_window_title('Problems')
+    axes=fig.axes
+    for jj in grp.bad_df.index:
+        row=grp.bad_df.iloc[jj]
+        ax=groups.index(row.reason)
+        axes[ax].set_title(reasons[row.reason]) 
+        axes[ax].set_ylabel('normPSP,'+row.reason)
+        num_traces=row['num_traces']
+        time=row['psptime']/SEC_PER_MIN #convert to minutes
+        yvals=row['normPSP'] #convert to reasonable units
+        expname=row.exper
+        p=axes[ax].plot(time,yvals,label=expname)
+        color = p[-1].get_color()
+        if row.reason=='nan':
+            nan_index=np.argwhere(np.isnan(row['normPSP']))
+            axes[ax].plot(time[nan_index],np.ones((len(nan_index))),'o', color=color)
+        elif row.reason=='slope':
+            #FIXME: this does not plot correct 5 min line when NOT aligning induction with time=0
+            axes[ax].plot(time,row['Intercept']/row['meanpre']+row['slope']*(SEC_PER_MIN/row['meanpre'])*time,linestyle=':', color=color)
+            axes[ax].plot(time,row['Intercept10']/row['meanpre']+row['slope10']*(SEC_PER_MIN/row['meanpre'])*time,linestyle='-.', color=color)
+            axes[ax].set_title('dotted: 5 min slope, dot-dash: 10 min slope')  
+    for ax in axes:
+        ax.legend(fontsize=8, loc='best')
+    axes[-1].set_xlabel('Time (min)')
+
 
 def plot_corr(grp,xvar,yvar,samp=0): 
     fig,axes=pyplot.subplots(len(xvar),1,figsize=(6,3*len(xvar)))
