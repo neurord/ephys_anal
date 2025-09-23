@@ -21,9 +21,13 @@ Analysis includes:
 
 4. Analyze the induction protocol.  Determine frequency of within and between bursts, and time between trains.  Also determine whether spikes occur during induction, and the time of spikes relative to the stimulation
 
-Output file contains PSP characteristics and access resistance for each trace, IV/IF characteristics, induction characteristics, experimental parameters and analysis parameters.
+Output file contains PSP characteristics, RMP and access resistance for each trace, IV/IF characteristics, induction characteristics, experimental parameters and analysis parameters.
 
-Required inputs: experiment name, headstage(s) and celltype(s). If sex, age, drugs, genotype, region are not in the notebook file, these must also be specified. Specify inputs from within python with the following syntax:
+Required inputs: experiment name, headstage(s) and celltype(s). 
+
+Other required parameters: sex, age, drugs, genotype, region.  They are not required if they can be read from the notebook file. 
+
+Specify inputs from within python with the following syntax:
 
 ARGS="exper_name -headstage H1 celltype D1-SPN"
 
@@ -49,7 +53,7 @@ ARGS="exper_name -headstage H1 celltype D1-SPN -sex F -age 56 -genotype wt -regi
 
 	h. ss_dur: calculate steady state Vm using last X sec of pulse, default=0.050 s
 
-	i. IOrange: values of dig stim for IOtest (calculating IO curve)
+	i. IOrange: values of dig stim for IOtest (calculating IO curve) - specify set of values
 
 	j. induction: name of induction protocol, default = ThetaBurst
 
@@ -127,33 +131,49 @@ Analyzes groups of experiments - the output of PatchAnal.py. Generates graphs an
 
 	a. IDfile - csv file containing animal information such as sex or genotype (required)
 
-    	b. outputdir: full path to location of npz files (i.e., output files from PatchAnal.py)
+    b. outputdir: full path to location of npz files (i.e., output files from PatchAnal.py)
 	
 	c. slope_std_factor: excludes data files in which baseline slope exceeds +/- this factor times the std of the fit to the baseline. default value = 2
+	
+	d. slope_threshold: exclude data files in which baseline slope exceeds +/- this value. default=2e-5, units are fraction of change per sec.
+	
+    e. sepvarlist: A list of variables and values to used to separate all the data into groups. E.g. ['sex', 'genotype' ] is a list with two separation variables: sex, and genotype.  These variables are used by the Pandas function groupby. The order of specifying variables only matters to how the plots are grouped.
+	
+	f. samp_time: set of follow-up times (in minutes) for calculating mean plasticity change. default = 20 and 30 min
 
-    	d. sepvarlist: A list of variables and values to used to separate all the data into groups. E.g. ['sex', 'genotype' ] is a list with two separation variables: sex, and genotype.  These variables are used by the Pandas function groupby. The order of specifying variables only matters to how the plots are grouped.
+	g. max_age: maximum age of animals to include
 	
-	e. samp_time: set of follow-up times (in minutes) for calculating mean plasticity change
-	
-	f. plot_ctrl: a 3 bit string controlling the plots.
+	h. plot_ctrl: a 3 bit string controlling the plots.
 
 		1. 1st bit: 1 to have only one column of plots, 0 to have one column for each category in second variable of sepvarlist
 		
 		2. 2nd bit: 1 to plot PSP vs time for each experiment in a group, 0 otherwise
 		
 		3. 3rd but: 1 to plot correlations between LTP (at summarytime) and age or baseline epsp, 0 otherwise
+
+	i. To analyze only a subset of data, specify the subset using parameters:
+
+		1. sex (interpreted as sex and estrus or hormone status)
+
+		2. age (interpreted as minimum age)
+
+		3. drug
+
+		4. genotype
+
+		5. region
 		
 *hard coded parameters:*
 
 	a. nan_threshold: exclude data files if more than this many nans in PSP amplitude. value=10
 	
-	b. slope_threshold: exclude data files in which baseline slope exceeds +/- this value. value = 0.01 mV/min
-	
-	c. minimum sweeps: exclude data files if duration of experiment was shorter than this many follow-up sweeps. value = 10
+	b. minimum sweeps: exclude data files if duration of experiment was shorter than this many follow-up sweeps. value = 20 min
+
+	c. exclusion criteria: dictionary of measure:change, i.e., {"RMP":0.2, "Raccess":0.4} specifies no more than 20% change in RMP or 40% change in Raccess
 
 Specify parameters from within python with the following syntax:
 
-    ARGS = "AnimalInfo -outputdir ../pickle/ IDfile -sepvarlist sex region theta -plot_ctrl 000"
+    ARGS = "AnimalInfo -outputdir ../pickle/ IDfile -sepvarlist sex region theta -plot_ctrl 100"
 
 
 **5. GrpAvgSyn.py**
@@ -171,12 +191,18 @@ Analyzes groups of experiments - the output of synaptic.py. Generates graphs and
     	b. subdir: full path to location of npz files (i.e., output files from synaptic.py)
 	
     	c. sepvarlist: A list of variables and values to used to separate all the data into groups. E.g. ['sex', 'genotype' ] is a list with two separation variables: sex, and genotype.  These variables are used by the Pandas function groupby. The order of specifying variables only matters to how the plots are grouped.
+
+			If plot_ctrl[1]=1, a different graph panel for each of the 1st variable values, showing effect of second variable value.
+			
+			if plot_ctrl[1]=2, a different graph panel for each of the 1st and 2nd variable values.
 	
-	d. plot_ctrl: a 2 bit string controlling the plots.
+	d. plot_ctrl: a 3 bit string controlling the plots.
 
 		1. 1st bit: whether to show graphs or not
+
+		2. 2nd bit: number of columns for plotting groups if using 2 or more separation variables
 		
-		2. 2nd bit: 1 to plot correlations between PSC characteristics, 0 otherwise
+		2. 3rd bit: 1 to plot correlations between PSC characteristics, 0 otherwise
 		
 Specify parameters from within python with the following syntax:
 

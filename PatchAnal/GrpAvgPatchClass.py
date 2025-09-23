@@ -417,7 +417,7 @@ class GrpPatch:
         return filnm      
 
 if __name__ =='__main__':        
-    ARGS = "Surgery_record -plot_ctrl 110"      #-sex FC -age 75
+    #ARGS = "Surgery_record -plot_ctrl 110"      #-sex FC -age 75
     exclude_name=[] #['theta'] #use to exclude variable(s) from column name in _points files	        
     try:
         commandline = ARGS.split() #in python: define space-separated ARGS string
