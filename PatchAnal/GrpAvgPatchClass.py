@@ -75,7 +75,7 @@ class GrpPatch:
                     exper_param['ID']='250530-B7-F2L' #not 250529-B9-F2L, wrong animal ID entered in metadata during experiment
                 ## calculate time since surgery (females only), and age if necessary
                 exper_date=self.dates(exper_param['exper'],'_')
-                if exper_param['SxDate']: #no surgery date for males:
+                if exper_param['SxDate'] != 'NAN': #no surgery date for males:
                     sx_date=self.dates(exper_param['SxDate'],'')
                     exper_param['sx_time']=(exper_date-sx_date).days
                 else:
@@ -329,10 +329,11 @@ class GrpPatch:
         reason={}
         for key,indices in bad_index.items():
             for ii in indices:
-                row=self.whole_df.loc[ii]
-                self.bad_df.loc[len(self.bad_df)]=row
-                reason[row['exper']]=key
-                self.whole_df.drop(index=ii,inplace=True)
+                if ii in self.whole_df.index:
+                    row=self.whole_df.loc[ii]
+                    self.bad_df.loc[len(self.bad_df)]=row
+                    reason[row['exper']]=key
+                    self.whole_df.drop(index=ii,inplace=True)
         self.bad_df['reason']=self.bad_df['exper'].map(reason)
 
         #possibility 2: if a single change in the middle of follow-up, exclude that one point
@@ -417,7 +418,7 @@ class GrpPatch:
         return filnm      
 
 if __name__ =='__main__':        
-    #ARGS = "Surgery_record -plot_ctrl 110"      #-sex FC -age 75
+    #ARGS = "Surgery_record -plot_ctrl 111"      #-sex FC -age 75
     exclude_name=[] #['theta'] #use to exclude variable(s) from column name in _points files	        
     try:
         commandline = ARGS.split() #in python: define space-separated ARGS string
