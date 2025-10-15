@@ -625,8 +625,8 @@ class PatchAnal():
                 else:
                     stim_start=int(0.20/dt) #FIXME: make parameter in ArgParser, 0.203?
                 #### plotting part ####
-                basestartpt=stim_start-int(self.basestart/dt)  #basestart is duration prior to event 
-                base_endpt=basestartpt+int(self.base_dur/dt)
+                basestartpt=stim_start-int((self.base_dur+self.artifact_decay)/dt)  #basestart is duration prior to event 
+                base_endpt=stim_start-int(self.artifact_decay/dt)-1
                 colinc=(len(colors.colors)-1)/(IOtraces-1)
                 for num in range(IOtraces):  #num indexes arrays - resets to zero for each routine
                     maxvm,RMP,peakpt=self.psp_detect(r,num,dt,stim_start)
@@ -642,7 +642,7 @@ class PatchAnal():
                         axes[hd].plot(time[pt],trace[pt]+num*offset,'k.')
             axes[hd].set_xlabel('Time (sec)')
             axes[hd].set_ylabel(headstage+' Vm (volts)')
-            axes[0].set_title ('IO curve')
+            axes[0].set_title ('IO curve, *=peak, .=baseline')
             axes[0].legend()  
      
     def normalize(self,baseline_time=None):
