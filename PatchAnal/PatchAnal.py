@@ -411,7 +411,7 @@ class PatchAnal():
                 #Refractary period after stim artifact is preventing finding some APs
                 peaks=find_peaks(trace[self.depol_startpt:self.depol_endpt],self.APthresh,width=10) #width in points, stim artifact interferes with spike detection if distance is used
                 if len(peaks[0]): #verify AP and not noise, extract spike time and risetime
-                    num_peaks,peak_times=self.find_spikes(self.induct_headstage,r,num,trace[self.depol_startpt:self.depol_endpt],peaks[0],self.induct_dt,routine_type='induct')
+                    num_peaks,_,peak_times=self.find_spikes(self.induct_headstage,r,num,trace[self.depol_startpt:self.depol_endpt],peaks[0],self.induct_dt,routine_type='induct')
                 else:
                     num_peaks=0
                     peak_times=[]
@@ -435,7 +435,7 @@ class PatchAnal():
     def find_spikes(self,h,r,s,wave,peaks,dt,routine_type): #FIXME: change to induct vs IV_IF?
         time=np.arange(len(wave))*dt
         riset=[];Vthresh=[];APtime=[];APpeak=[];APheight=[]
-        delete_list=[]
+        delete_list=[]; sweep_freq=None
         for i,peakpt in enumerate(peaks):
             start=max(0,peakpt-int(self.max_risetime/dt))
             if start<len(wave)-2:
@@ -460,8 +460,13 @@ class PatchAnal():
         num_peaks=len(peaks)
         #if num_peaks==0 (all peaks are noise) don't store these
         if routine_type=='IVIF' and num_peaks:
+            sweep_freq=np.mean(1/np.diff(APtime))
             width=su.spike_width(wave,time,peaks,APheight,Vthresh)
-            ahp,ahp_pt=su.spike_ahp(wave,peaks,(np.array(width)/dt).astype(int),len(wave),Vthresh)
+            ahp,ahp_pt=su.spike_ahp(wave,peaks,(np.array(width)/dt).astype(int),Vthresh)
+            if len(ahp)<num_peaks: #redimension all arrays of AP characteristics to drop the last spike
+                num_peaks=len(ahp)
+                for AParray in [APtime,riset,Vthresh,APpeak,APheight,width]:
+                    AParray.pop()
             ahp_time=time[ahp_pt]-APtime
             self.IV_IF_spikes[h][r][s]=np.rec.fromarrays((APtime,riset,Vthresh,APpeak,APheight,width,ahp,ahp_time),names='APtime,risetime,Vthresh,APpeak,APheight,APwidth,AHP_amp,AHP_t')
         elif routine_type=='induct' and num_peaks: #only store peak value, peak time and risetime for theta protocol
@@ -470,7 +475,7 @@ class PatchAnal():
             print('!!!!!!!!!!!!!!!!! un-recognized routine type !!!!!!!!!!!!!!!!!!!!! ')
         else:
             print('no peaks found in', r,s)
-        return num_peaks, APtime
+        return num_peaks, sweep_freq, APtime
 
     def IV_IF_anal(self):
         def inject_time(timepoints,dt,r): #find injection current for both IV and IF
@@ -509,8 +514,7 @@ class PatchAnal():
                 for num in range(np.shape(traces)[-1]):  #num indexes traces / sweeps
                     peaks=find_peaks(traces[inj_startpt:inj_endpt,num],self.APthresh,distance=int(self.refract/self.IV_dt[r])) #AP are defined as crossing zero, exceeding APthresh
                     if len(peaks[0]):
-                        num_spikes,APtime=self.find_spikes(headstage,r,num,traces[inj_startpt:inj_endpt,num],peaks[0],self.IV_dt[r],routine_type='IVIF')
-                        sweep_freq=np.mean(1/np.diff(APtime))
+                        num_spikes,sweep_freq,_=self.find_spikes(headstage,r,num,traces[inj_startpt:inj_endpt,num],peaks[0],self.IV_dt[r],routine_type='IVIF')                        
                     else:
                         num_spikes=0
                         sweep_freq=np.nan

@@ -13,18 +13,15 @@ def spike_width(y,x,peaks,height,thresh):
         width.append( (x[end] + x[end+1] - x[beg] - x[beg-1]) / 2)
     return width
 
-def spike_ahp(y,peaks,widths,inject_endpt,thresh):
+def spike_ahp(y,peaks,widths,thresh):
     ahp=[]
     ahp_pt=[]
     for i,peakpt in enumerate(peaks):
-        end = peaks[i + 1] if i < len(peaks)-1 else inject_endpt
+        end = peaks[i + 1] if i < len(peaks)-1 else len(y)
         beg = min(peakpt + int(widths[i]/2), end)
         if end>beg:
             ahp.append( y[beg:end].min()-thresh[i])
             ahp_pt.append(y[beg:end].argmin()+beg)
-        else:
-            ahp.append(np.nan)
-            ahp_pt.append(np.nan)
     return ahp, ahp_pt
 
 def rectification(traces,inject, inj_start,inj_end,window):
