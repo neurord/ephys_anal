@@ -115,7 +115,7 @@ def summary_plot(exp):
         psp_minutes=(exp.psptime[h])/SEC_PER_MIN #start from 0, convert from sec to min
         axes[0].plot(psp_minutes,exp.normpsp[h],color=color,marker='.',linestyle='None',label=h)
         axes[0].plot(psp_minutes[0:exp.num_pre],line(exp.psptime[h][0:exp.num_pre],exp.Aopt[h]/exp.meanpre[h],exp.Bopt[h]/exp.meanpre[h]),color=color,alpha=0.5)
-        nan_list(psp_minutes,exp.normpsp[h],1.0,axes,h)
+        nan_list(psp_minutes,exp.normpsp[h],1.0,axes[0],h)
         axes[0].set_ylabel ('Normalized PSP amplitude ')
         axes[0].legend()
         #Now plot RMP and Raccess
@@ -182,12 +182,12 @@ def induction_plot(exp,stim_time=[]): #plot traces, for visual inspection / veri
     fig2=induct_summary('num spikes','num_spikes')
     fig3=induct_summary('1st spike time (s)','spikes',AP='APtime')
 
-def nan_list(xvals,yvals,nanval,axes,h):
+def nan_list(xvals,yvals,nanval,ax,h):
     nans=np.where(np.isnan(yvals))[0]
     if len(nans):
         newx=[xvals[x] for x in nans]
         newy=[nanval for x in nans]
-        axes.plot(newx,newy,color='black',linestyle='None',marker='*',label='nan'+h)
+        ax.plot(newx,newy,color='black',linestyle='None',marker='*',label='nan'+h)
     return 
 
 def IO_plot(exp):
