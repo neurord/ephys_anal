@@ -63,7 +63,8 @@ def plot_groups(avg_grp,stderr_grp,minutes_grp,count,common_filenm,sepvarlist,pl
             axes[-1].axhline(1)
             axes[-1].set_ylabel('normPSP')
             axes[-1].set_xlabel('Time (min)') 
-        
+    
+    panel_labels=['A', 'B', 'C', 'D']
     for grp in avg_grp.keys():  
         if len(sepvarlist)==1:
             axnum=entry1.index(grp)
@@ -79,6 +80,7 @@ def plot_groups(avg_grp,stderr_grp,minutes_grp,count,common_filenm,sepvarlist,pl
             axnum=row*numcols+col
             lbl='_'.join(grp)+',n='+str(np.max(count[grp]))
         axes[axnum].errorbar(minutes_grp[grp],avg_grp[grp],stderr_grp[grp],label=lbl) #alternative: filenm[grp]
+        axes[axnum].text(-0.1, 1.15, panel_labels[axnum], transform=axes[axnum].transAxes, fontsize=12, fontweight='bold', va='top', ha='right')
         axes[axnum].legend(fontsize=10, loc='upper left')
     for axnum in range(len(axes)):
         axes[axnum].add_patch(Rectangle((0,0.5),3,3,alpha=0.2,color='gray'))
@@ -89,6 +91,7 @@ def plot_onegroup(grp,yvars,factors):
     fig,axes=pyplot.subplots(len(yvars),numcols,figsize=(3*numcols,3.5*len(yvars)))
     axes=fig.axes
     for row,yvar in enumerate(yvars):
+        ymin=0;ymax=0
         for col,group in enumerate(grp.grp_data.groups.keys()):
             ax=row*numcols+col
             axes[col].set_title(group_to_word(group))
@@ -97,11 +100,13 @@ def plot_onegroup(grp,yvars,factors):
                 yvals=grp.grp_data.get_group(group)[yvar][i]*factors[row] #convert to reasonable units
                 expname=grp.grp_data.get_group(group).exper[i]
                 axes[ax].plot(xvals,yvals,label=expname)
-            ylim=axes[ax].get_ylim()
-            if np.min(ylim)<0:
-                axes[ax].set_ylim([round(ylim[0]),0])
-            elif np.min(ylim)>0:
-                axes[ax].set_ylim([1,round(ylim[1])])
+                ymax=max(ymax,np.nanmax(yvals))
+                ymin=min(ymin,np.nanmin(yvals))
+        for col in range(numcols): 
+            if ymin<0: #RMP
+                axes[row*numcols+col].set_ylim([round(1.05*ymin),0])
+            elif ymin>=0: #Raccess
+                axes[row*numcols+col].set_ylim([0,round(1.05*ymax)])
     for col in range(numcols): #only add xlabel and legend to bottom row
         axes[row*numcols+col].set_xlabel('time')
         axes[row*numcols+col].legend()
@@ -199,10 +204,17 @@ def sort_y_by_x(Y,X):
 
 def plot_IVIF(grp,yvars,x,units): 
     numcols=len(grp.grp_data.groups.keys())
-    fig,axes=pyplot.subplots(len(yvars),numcols,figsize=(3*numcols,3.5*len(yvars)))
-    fig.canvas.manager.set_window_title(x+' - separate') #FIXME: customize for IO
+    sharex=True
+    if len(yvars)==1:
+        sharey=True
+    else:
+        sharey=False
+    fig,axes=pyplot.subplots(len(yvars),numcols,figsize=(3*numcols,3.5*len(yvars)),sharex=sharex,sharey=sharey)
+    fig.canvas.manager.set_window_title(x+' - separate')
     axes=fig.axes
     for fnum,yvar in enumerate(yvars):
+        ymin=0
+        ymax=0
         for col,group in enumerate(grp.grp_data.groups.keys()):
             ax=fnum*numcols+col
             axes[col].set_title(group_to_word(group))
@@ -213,9 +225,13 @@ def plot_IVIF(grp,yvars,x,units):
                 conversion=1
             for ii in grp.grp_data.get_group(group).index:
                 yvalues=grp.grp_data.get_group(group)[yvar][ii]
+                ymax=max(ymax,np.nanmax(yvalues))
+                ymin=min(ymin,np.nanmin(yvalues))
                 xvals=grp.grp_data.get_group(group)[x][ii]*conversion
                 yvalues,xvals=sort_y_by_x(yvalues,xvals) #sort x and y values by ordering x values
                 axes[ax].plot(xvals,yvalues,label=grp.grp_data.get_group(group)['exper'][ii])
+        for col in range(numcols):
+            axes[fnum*numcols+col].set_ylim([ymin,1.05*ymax])
     for col in range(numcols): #only add xlabel and legend to bottom row
         axes[fnum*numcols+col].set_xlabel(xlabel)
         axes[fnum*numcols+col].legend(fontsize=10, loc='best')
