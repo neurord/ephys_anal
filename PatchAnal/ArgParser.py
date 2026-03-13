@@ -32,9 +32,9 @@ def ArgParserPatch(commandline,do_exit,flag=0):
     if not flag:
         parser.add_argument('-IOrange',type=float,nargs='+',help='values of dig stim for IOtest, space separated',default=[0.02, 0.12, 0.22, 0.32, 0.42, 0.52, 0.62, 1.2, 2.2, 3.2])
         parser.add_argument('-PSPstart', type=float, help = 'earliest time a PSP could be detected', default=0.927)
-        parser.add_argument('-basestart', type=float, help='time PRIOR to event for assessing baseline membrane potential', default=0.12)
+        parser.add_argument('-basestart', type=float, help='time PRIOR to event for assessing baseline membrane potential', default=0.22)
         parser.add_argument('-base_dur', type=float, help='duration of baseline period, make smaller than basestart', default=0.10) # <= basestart
-        parser.add_argument('-ss_dur', type=float, help='calculate steady state Vm using last X sec of pulse', default=0.050)
+        parser.add_argument('-ss_dur', type=float, help='calculate steady state Vm using last X sec of pulse', default=0.100)
         parser.add_argument('-APthresh', type=float,help='minimum amplitude to be considered spike',default=0)
         parser.add_argument('-thresheight', type=float,help='minimum spike height to be considered spike',default=0.05)
         parser.add_argument('-refract', type=float,help='minimum time between AP',default=0.004)
@@ -57,7 +57,7 @@ def ArgParserPatch(commandline,do_exit,flag=0):
         parser.add_argument('IDfile', type=str)
         parser.add_argument("-samp_time", nargs="+",default=[20,30]) 
         parser.add_argument('-plot_ctrl',type=str,default='110', help='1st bit: show plots, 2nd bit: #columns in figure, 3rd bit: plot correlations') 
-        parser.add_argument("-sepvarlist", nargs="+",default=['Status','celltype'],help='list of separation variables for grouping data')
+        parser.add_argument("-sepvarlist", nargs="+",default=['celltype', 'Status'],help='list of separation variables for grouping data')
         parser.add_argument("-induction", type=str ,help="induction frequency, e.g. 20 Hz or 10.5 Hz") 
         parser.add_argument("-maxage", type=int, help="maximum animal age to include in analysis") 
         parser.add_argument("-slope_thresh", type=float, help="maximum value of baseline slope", default=2e-5) #fraction of change per sec.  Same as .0012 /minute or .036 in 30 min.

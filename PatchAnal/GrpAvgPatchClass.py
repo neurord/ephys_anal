@@ -53,9 +53,13 @@ class GrpPatch:
             date=datestring.split(separator)[0]
         else:
             date=datestring
-        y=int('20'+date[0:2])
-        m=int(date[2:4])
-        d=int(date[4:6])
+        if len(date)==6:
+            date='20'+date
+        if len(date)!=8:
+            sys.exit('ERROR!!!!! date format incorrect, date='+date)
+        y=int(date[0:4])
+        m=int(date[4:6])
+        d=int(date[6:8])
         newdate=datetime.date(y,m,d)
         return newdate
 
@@ -75,7 +79,7 @@ class GrpPatch:
                     exper_param['ID']='250530-B7-F2L' #not 250529-B9-F2L, wrong animal ID entered in metadata during experiment
                 ## calculate time since surgery (females only), and age if necessary
                 exper_date=self.dates(exper_param['exper'],'_')
-                if exper_param['SxDate'] != 'NAN': #no surgery date for males:
+                if exper_param['SxDate'].upper() !='NAN' and exper_param['SxDate'].upper() !='NA': #no surgery date for males:
                     sx_date=self.dates(exper_param['SxDate'],'')
                     exper_param['sx_time']=(exper_date-sx_date).days
                 else:
@@ -275,11 +279,11 @@ class GrpPatch:
             self.samples[grp]=count
             self.minutes[grp]=grp_utl.exp_avg(self.grp_data.get_group(grp)[xvar])[0]/SEC_PER_MIN
     
-    def exclusion_criteria(self,yvar_dict):
+    def exclusion_criteria(self,yvars,allowable_change):
         from itertools import groupby 
         num_traces=[len(x) for x in self.whole_df['Raccess']]
         self.whole_df['num_traces']=num_traces
-        for yvar,change in yvar_dict.items():
+        for yvar,change in zip(yvars,allowable_change):
             for ii in self.whole_df.index:
                 yvals=self.whole_df[yvar][ii][0:self.whole_df['num_traces'][ii]]
                 if not np.all(yvals==np.nan):
@@ -418,7 +422,7 @@ class GrpPatch:
         return filnm      
 
 if __name__ =='__main__':        
-    #ARGS = "Surgery_record -plot_ctrl 111"      #-sex FC -age 75
+    ARGS = "Surgery_record -plot_ctrl 111"      #-sex FC -age 75
     exclude_name=[] #['theta'] #use to exclude variable(s) from column name in _points files	        
     try:
         commandline = ARGS.split() #in python: define space-separated ARGS string
@@ -439,7 +443,8 @@ if __name__ =='__main__':
         grp.read_data()
         grp_utl.read_IDfile(grp,'Sample',['Status']) #'Sample' has the unique identifier, ['Status'] is list of independent variables, e.g., sex, genotype to be added to df
         grp.ignore()
-        grp.exclusion_criteria({'RMP':0.2,'Raccess': 0.4}) #,'dV_2ms':0.3})
+        #grp.exclusion_criteria(['RMP','Raccess','dV_2ms'],[0.2,0.4,0.3])
+        grp.exclusion_criteria(['RMP','Raccess'],[0.2,0.4])
         grp_utl.plot_bad(grp)
         grp.group_data('psptime','normPSP') 
         if int(params.plot_ctrl[1])>0:
@@ -449,6 +454,7 @@ if __name__ =='__main__':
         if int(params.plot_ctrl[0]):
             fig=grp_utl.plot_groups(grp.avg_PSP,grp.stderr_PSP,grp.minutes,grp.samples,grp.common_filnm,grp.sepvarlist,plot_cols)
             fig2=grp_utl.plot_onegroup(grp,['Raccess','RMP'],[1e-6,1e3]) #convert to Mohm, mV
+            fig3=grp_utl.plot_onegroup(grp,['normPSP'],[100],symbol=True) #convert to percent
         grp.write_traces() 
         grp.write_stat_data() 
         grp.bar_graph_data(exclude_name)

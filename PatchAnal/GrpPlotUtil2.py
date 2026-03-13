@@ -86,7 +86,7 @@ def plot_groups(avg_grp,stderr_grp,minutes_grp,count,common_filenm,sepvarlist,pl
         axes[axnum].add_patch(Rectangle((0,0.5),3,3,alpha=0.2,color='gray'))
     return fig
     
-def plot_onegroup(grp,yvars,factors):
+def plot_onegroup(grp,yvars,factors,symbol=None):
     numcols=len(grp.grp_data.groups.keys())
     fig,axes=pyplot.subplots(len(yvars),numcols,figsize=(3*numcols,3.5*len(yvars)))
     axes=fig.axes
@@ -99,7 +99,10 @@ def plot_onegroup(grp,yvars,factors):
                 xvals=grp.grp_data.get_group(group)['psptime'][i]/SEC_PER_MIN  #convert to minutes
                 yvals=grp.grp_data.get_group(group)[yvar][i]*factors[row] #convert to reasonable units
                 expname=grp.grp_data.get_group(group).exper[i]
-                axes[ax].plot(xvals,yvals,label=expname)
+                if symbol:
+                    axes[ax].scatter(xvals,yvals,label=expname)
+                else:
+                    axes[ax].plot(xvals,yvals,label=expname, marker='.')
                 ymax=max(ymax,np.nanmax(yvals))
                 ymin=min(ymin,np.nanmin(yvals))
         for col in range(numcols): 
