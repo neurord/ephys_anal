@@ -314,9 +314,9 @@ class GrpPatch:
                 print ("!!! BAD 5 min baseline", self.whole_df['exper'][ii], "5 min slope u,s", round(self.whole_df['slope'][ii],7),round(self.whole_df['slope_std'][ii],7))
                 if np.abs(self.whole_df['slope10'][ii])>self.slope_threshold or (np.abs(self.whole_df['slope10'][ii])-self.slope_std_factor*self.whole_df['slope10_std'][ii]>0):
                     print ("BAD 10 min baseline also: ", round(self.whole_df['slope10'][ii],7),round(self.whole_df['slope10_std'][ii],7))
+                    bad_index['slope'].append(ii)
                 else:
                     print(" 10 min baseline is OK:", round(self.whole_df['slope10'][ii],7),round(self.whole_df['slope10_std'][ii],7))
-                bad_index['slope'].append(ii)
             if self.whole_df.psptime.iloc[ii][self.whole_df.num_traces.iloc[ii]-1]/SEC_PER_MIN <=self.minimum_time: #need 20 min of recording to be valid
                 print ("!!! NOT ENOUGH goodtraces", self.whole_df['exper'][ii], 'ending at',round(self.whole_df.psptime.iloc[ii][self.whole_df.num_traces.iloc[ii]-1]/SEC_PER_MIN,2), 'min')
                 bad_index['num_traces'].append(ii)
@@ -422,7 +422,7 @@ class GrpPatch:
         return filnm      
 
 if __name__ =='__main__':        
-    ARGS = "Surgery_record -plot_ctrl 111"      #-sex FC -age 75
+    #ARGS = "Surgery_record -plot_ctrl 111"      #-sex FC -age 75
     exclude_name=[] #['theta'] #use to exclude variable(s) from column name in _points files	        
     try:
         commandline = ARGS.split() #in python: define space-separated ARGS string
