@@ -146,9 +146,37 @@ def plot_bad(grp):
         ax.legend(fontsize=8, loc='best')
     axes[-1].set_xlabel('Time (min)')
 
+def bar_panel(grp,xvars):
+    if len(xvars)>4:
+        cols=int(np.sqrt(len(xvars)))
+        rows=int(np.ceil(len(xvars)/cols))
+        fig,axes=pyplot.subplots(rows,cols,figsize=(6*cols,3*rows))
+    else:
+        fig,axes=pyplot.subplots(len(xvars),1,figsize=(6,3*len(xvars)))
+    axes=fig.axes
+    xlabels=grp.grp_data.groups.keys()
+    xlbl=[x[0][0:2]+' '+x[1] for x in xlabels] 
+    colors={'D1':'r','D2':'b'}   
+    for ax,xvar in enumerate(xvars):
+        ymean=grp.grp_data[xvar].mean()
+        yerr=grp.grp_data[xvar].sem()
+        axes[ax].bar(xlbl,ymean.values,color='grey')
+        axes[ax].errorbar(xlbl,ymean.values,yerr=yerr.values,fmt='o',color='k',capsize=3)
+        for ii,xx in enumerate(xlabels):
+            yvals=grp.grp_data.get_group(xx)[xvar].values
+            axes[ax].scatter([ii]*len(yvals),yvals,marker='.',color=colors[xx[0][0:2]])
+        axes[ax].set_ylabel(xvar)
+        axes[ax].set_xlabel('Celltype/Status')
+    fig.tight_layout()
+    return fig
 
 def plot_corr(grp,xvar,yvar,samp=0): 
-    fig,axes=pyplot.subplots(len(xvar),1,figsize=(6,3*len(xvar)))
+    if len(xvar)>4:
+        cols=int(np.sqrt(len(xvar)))
+        rows=int(np.ceil(len(xvar)/cols))
+        fig,axes=pyplot.subplots(rows,cols,figsize=(6*cols,3*rows))
+    else:
+        fig,axes=pyplot.subplots(len(xvar),1,figsize=(6,3*len(xvar)))
     axes=fig.axes
     fig.suptitle(yvar+' vs '+' ,'.join(xvar))
     fig.canvas.manager.set_window_title(yvar)
@@ -157,7 +185,7 @@ def plot_corr(grp,xvar,yvar,samp=0):
             yvalues=[grp.grp_data.get_group(group)[yvar].values[i][samp] for i in range(len(grp.grp_data.get_group(group)))]
             xvals=grp.grp_data.get_group(group)[x].values 
             plot_line=False
-            if np.isnan(yvalues).any() or len(yvalues)<3:
+            if np.isnan(yvalues).any() or len(yvalues)<3 or np.isnan(xvals).any():
                 print ("plot_corr: Nans in yalues or <3 samples for group:", group,'X:', xvals,'Y:', yvalues)
                 labl=group_to_word(group)
             else:
@@ -176,6 +204,7 @@ def plot_corr(grp,xvar,yvar,samp=0):
     for axis in axes:
         axis.legend(fontsize=10, loc='best')
     fig.canvas.draw()
+    fig.tight_layout()
     pyplot.show()
 
 def plot_IVIF_mean(grp,ivif_dict, plot_vars, x): 
@@ -311,3 +340,4 @@ def read_IDfile(grp,IDfield,indep_var):
         for iv in indep_var:
             grp.whole_df[iv] = grp.whole_df['ID'].map(vars()[iv])
     print(grp.whole_df[print_vars])
+
