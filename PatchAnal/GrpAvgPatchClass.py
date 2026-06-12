@@ -46,7 +46,8 @@ class GrpPatch:
         self.print_info=1 
         self.single_params=['region','genotype','age','drug','ID','time_to_induct','sx_time','pre_num'] #extract these from exper_param
         self.fname_vars=['region','genotype','sex','drug']
-        self.IVIF_variables=['Im','Vm','latency','num_spikes'] #also, APheight, APwidth, AHP_amp, AHP_time?
+        self.IVIF_variables=['Im','Vm','latency','num_spikes']
+        self.IF_variables=['risetime', 'Vthresh', 'APheight', 'APwidth', 'AHP_amp', 'AHP_t']
 
     def dates(self,datestring,separator):
         if separator:
@@ -69,6 +70,7 @@ class GrpPatch:
         ANAL_PARAMS=[]
         IVIFset=[]
         IOset=[]
+        anal_file=[]
         for outfname in self.outfnames:
             with open(outfname, 'rb') as f:
                 datadict = np.load(f,allow_pickle=True)
@@ -101,6 +103,7 @@ class GrpPatch:
                     IO={'amp':{'H2':[],'H1':[]}} #empty dictionary
                 celltype=exper_param['celltype']
                 print_params={k:v for k,v in exper_param.items() if not isinstance(v,dict) or k=='celltype'}
+                anal_file.append(print_params | {'IOrange':anal_params['IOrange'],'decay':anal_params['decay'],'digstim':anal_params['digstim']})
             if self.print_info and 'slope' in data.keys():
                 print ("file read:", print_params,", baseline slope=", [round(sl,6) for sl in data['slope'].values()])
             ########## identify experiments that do not meet includsion criteria, extract values for single cell/headstage ##########
@@ -132,9 +135,11 @@ class GrpPatch:
         df_io=pd.DataFrame(IOset)
         df_anal=pd.DataFrame(ANAL_PARAMS)
         self.whole_df=pd.concat([dfparams,dfdata,df_ivif,df_io,df_anal], axis = 1)
-        for col in ['celltype','Status','max_latency','rheobase']:
+        for col in ['celltype','Status','max_latency','rheobase','Rm']:
             self.single_params.append(col)
         self.single_params.remove('pre_num')
+        anal_df=pd.DataFrame.from_dict(anal_file)
+        anal_df.to_csv('anal_params.csv',index=False) #data file with experimental parameters needed to re-analyze experiments in batch model
 
     def ignore(self):
         ############ Select subset of files based on user specified criteria ##########  
@@ -200,7 +205,7 @@ class GrpPatch:
         return {k:np.array(v) for k,v in time_samples.items()}, induction_index, int(induction_index/tracesPerMinute)
 
     def IVIFdata(self,IVIF,hs,params):
-        IVIF_data={}
+        IVIF_data={} #rectification, Input resistance at RMP, spike width, spike height, AHP amp
         IFneeded=True
         for key,vals in IVIF['IV'][hs].items():
             #identify IV and IF from prior to baseline 
@@ -209,6 +214,9 @@ class GrpPatch:
                 if 'IV' in key:
                     for arr in self.IVIF_variables:
                         IVIF_data[arr]=vals[arr] #this assumes that IV is first
+                    #input resistance
+                    IR_index=np.max(np.where(IVIF_data['Im']<0))
+                    IVIF_data['Rm'] = (IVIF_data['Vm'][IR_index]-IVIF_data['Vm'][IR_index-1])/(IVIF_data['Im'][IR_index]-IVIF_data['Im'][IR_index-1])/1e6 #convert to Mohms
                 if 'IF' in key and IFneeded:
                     IFneeded=False #prevent multiple IF curves from pre-induction
                     for arr in self.IVIF_variables:
@@ -216,8 +224,16 @@ class GrpPatch:
                 IVIF_data['max_latency']=np.nanmax(IVIF_data['latency'])
                 if np.max(IVIF_data['num_spikes'])>0:
                     IVIF_data['rheobase']=[v for v in params['rheobase'].values()][0]
+                    if np.max(IVIF_data['num_spikes'])>1:
+                        spike_char_trace=np.min(np.where(IVIF['IV'][hs][key]['num_spikes']>1)) #characterize spikes from 1st trace with 2 or more spikes
+                    else:
+                        spike_char_trace=np.min(np.where(IVIF['IV'][hs][key]['num_spikes']>0)) #use trace with only 1 spike if that is the only option
+                    for char in set(self.IF_variables) & set(IVIF['spikes'][hs][key][spike_char_trace].dtype.names):
+                        IVIF_data[char]=np.mean(IVIF['spikes'][hs][key][spike_char_trace][char])*1000 #convert from sec to ms and  V to mV
                 else:
                     IVIF_data['rheobase']=np.nan
+                    for char in self.IF_variables:
+                        IVIF_data[char]=np.nan
         return IVIF_data
 
     def summary_measure(self,celltrace,param):
@@ -343,8 +359,8 @@ class GrpPatch:
         #possibility 2: if a single change in the middle of follow-up, exclude that one point
 
     def write_stat_data(self):
-        SASoutput = self.whole_df[self.single_params] #in to a 2d array you write it into SASoutput. 
-        SASheader= '   '.join(self.single_params) + ' baseline'
+        SASoutput = self.whole_df[self.single_params+self.IF_variables].round(decimals=3) #in to a 2d array you write it into SASoutput. 
+        SASheader= '   '.join(self.single_params+self.IF_variables) + ' baseline'
         SASoutput=np.column_stack((SASoutput,round(self.whole_df.meanpre,5)))
         for col in range(len(self.whole_df.PSPsamples[0])):
             pspmean=[round(row[col],5) for row in self.whole_df.PSPsamples]
@@ -422,7 +438,7 @@ class GrpPatch:
         return filnm      
 
 if __name__ =='__main__':        
-    #ARGS = "Surgery_record -plot_ctrl 111"      #-sex FC -age 75
+    #ARGS = "Surgery_record -plot_ctrl 001"      #-sex FC -age 75
     exclude_name=[] #['theta'] #use to exclude variable(s) from column name in _points files	        
     try:
         commandline = ARGS.split() #in python: define space-separated ARGS string
@@ -451,7 +467,7 @@ if __name__ =='__main__':
             plot_cols=int(params.plot_ctrl[1])
         else:
             plot_cols=None
-        if int(params.plot_ctrl[0]):
+        if int(params.plot_ctrl[0]): #these are variable vs time plot
             fig=grp_utl.plot_groups(grp.avg_PSP,grp.stderr_PSP,grp.minutes,grp.samples,grp.common_filnm,grp.sepvarlist,plot_cols)
             fig2=grp_utl.plot_onegroup(grp,['Raccess','RMP'],[1e-6,1e3]) #convert to Mohm, mV
             fig3=grp_utl.plot_onegroup(grp,['normPSP'],[100],symbol=True) #convert to percent
@@ -462,16 +478,18 @@ if __name__ =='__main__':
         ivif_dict=grp_utl.cluster_IVIF(grp,plot_vars,'Im',conversion=1e12 ) #convert to pA
         io_dict=grp_utl.cluster_IVIF(grp,['IOamp'],'IOrange',eps=.005)  #Use eps=.001-0.009 - since only specify two digits for stim) 
         for i_dict,yvars,xvar,units in zip([ivif_dict,io_dict],[plot_vars,['IOamp']],['Im','IOrange'],['pA','mA']):
-            grp.write_IVIF(i_dict,yvars,xvar) 
+            grp.write_IVIF(i_dict,yvars,xvar)
             if int(params.plot_ctrl[0]):
-                grp_utl.plot_IVIF(grp,yvars, xvar,units) 
+                grp_utl.plot_IVIF(grp,yvars, xvar,units) #x value is current injection or stimulation for these plots
                 grp_utl.plot_IVIF_mean(grp,i_dict,yvars, xvar) 
         if int(params.plot_ctrl[2]):
-            grp_utl.plot_corr(grp,['age','time_to_induct'],'PSPsamples') 
+            xvar=['age','time_to_induct','max_latency','rheobase','digstim','meanpre','Rm']+grp.IF_variables
+            grp_utl.plot_corr(grp,xvar,'PSPsamples')
+            grp_utl.bar_panel(grp,xvar)
     #
     ########## NEXT STEPS: ################
-    # 3. extract Number of spikes during induction to use in corr plots?  After saving in patch Anal
-    ### IF needed, can add back in newcolumn_name - to take care of drug concentration - from GrpAvgPopSpikeClass
+    # add max_spikes to grp.IF_variables?
+    ### If needed, can add back in newcolumn_name - to take care of drug concentration - from GrpAvgPopSpikeClass
 
                 
                 
