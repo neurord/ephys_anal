@@ -46,8 +46,8 @@ class GrpPatch:
         self.print_info=1 
         self.single_params=['region','genotype','age','drug','ID','time_to_induct','sx_time','pre_num'] #extract these from exper_param
         self.fname_vars=['region','genotype','sex','drug']
-        self.IVIF_variables=['Im','Vm','latency','num_spikes']
-        self.IF_variables=['risetime', 'Vthresh', 'APheight', 'APwidth', 'AHP_amp', 'AHP_t']
+        self.IVIF_variables=['Im','Vm','latency','num_spikes','rect','APfreq']
+        self.spike_variables=['risetime', 'Vthresh', 'APheight', 'APwidth', 'AHP_amp', 'AHP_t']
         self.vary_anal_pars=['IOrange','decay','digstim','psp_end','base_time','ss_dur']
 
     def dates(self,datestring,separator):
@@ -224,17 +224,20 @@ class GrpPatch:
                     for arr in self.IVIF_variables:
                         IVIF_data[arr]=np.hstack((IVIF_data[arr],vals[arr])) #this assumes that IV is first
                 IVIF_data['max_latency']=np.nanmax(IVIF_data['latency'])
+                IVIF_data['max_rect']=(IVIF_data['Vm'][1]-IVIF_data['Vm'][0])/(IVIF_data['Vm'][IR_index]-IVIF_data['Vm'][IR_index-1]) #rectification from steady state depol
+                IVIF_data['max_rect2']=(IVIF_data['rect'][0]-IVIF_data['Vm'][0])/IVIF_data['Vm'][0] #rectification from early sag
+                IVIF_data['max_freq']=np.nanmax(IVIF_data['APfreq'])
                 if np.max(IVIF_data['num_spikes'])>0:
                     IVIF_data['rheobase']=[v for v in params['rheobase'].values()][0]
                     if np.max(IVIF_data['num_spikes'])>1:
                         spike_char_trace=np.min(np.where(IVIF['IV'][hs][key]['num_spikes']>1)) #characterize spikes from 1st trace with 2 or more spikes
                     else:
                         spike_char_trace=np.min(np.where(IVIF['IV'][hs][key]['num_spikes']>0)) #use trace with only 1 spike if that is the only option
-                    for char in set(self.IF_variables) & set(IVIF['spikes'][hs][key][spike_char_trace].dtype.names):
+                    for char in set(self.spike_variables) & set(IVIF['spikes'][hs][key][spike_char_trace].dtype.names):
                         IVIF_data[char]=np.mean(IVIF['spikes'][hs][key][spike_char_trace][char])*1000 #convert from sec to ms and  V to mV
                 else:
                     IVIF_data['rheobase']=np.nan
-                    for char in self.IF_variables:
+                    for char in self.spike_variables:
                         IVIF_data[char]=np.nan
         return IVIF_data
 
@@ -361,8 +364,8 @@ class GrpPatch:
         #possibility 2: if a single change in the middle of follow-up, exclude that one point
 
     def write_stat_data(self):
-        SASoutput = self.whole_df[self.single_params+self.IF_variables].round(decimals=3) #in to a 2d array you write it into SASoutput. 
-        SASheader= '   '.join(self.single_params+self.IF_variables) + ' baseline'
+        SASoutput = self.whole_df[self.single_params+self.spike_variables].round(decimals=3) #in to a 2d array you write it into SASoutput. 
+        SASheader= '   '.join(self.single_params+self.spike_variables) + ' baseline'
         SASoutput=np.column_stack((SASoutput,round(self.whole_df.meanpre,5)))
         for col in range(len(self.whole_df.PSPsamples[0])):
             pspmean=[round(row[col],5) for row in self.whole_df.PSPsamples]
@@ -476,7 +479,7 @@ if __name__ =='__main__':
         grp.write_traces() 
         grp.write_stat_data() 
         grp.bar_graph_data(exclude_name)
-        plot_vars=[a for a in grp.IVIF_variables if a != 'Im']
+        plot_vars=[a for a in grp.IVIF_variables if a != 'Im' and a != 'rect']
         ivif_dict=grp_utl.cluster_IVIF(grp,plot_vars,'Im',conversion=1e12 ) #convert to pA
         io_dict=grp_utl.cluster_IVIF(grp,['IOamp'],'IOrange',eps=.005)  #Use eps=.001-0.009 - since only specify two digits for stim) 
         for i_dict,yvars,xvar,units in zip([ivif_dict,io_dict],[plot_vars,['IOamp']],['Im','IOrange'],['pA','mA']):
@@ -485,12 +488,12 @@ if __name__ =='__main__':
                 grp_utl.plot_IVIF(grp,yvars, xvar,units) #x value is current injection or stimulation for these plots
                 grp_utl.plot_IVIF_mean(grp,i_dict,yvars, xvar) 
         if int(params.plot_ctrl[2]):
-            xvar=['age','time_to_induct','max_latency','rheobase','digstim','meanpre','Rm']+grp.IF_variables
+            xvar=['age','time_to_induct','max_latency','rheobase','digstim','meanpre','Rm','max_rect','max_rect2','max_freq']+grp.spike_variables
             grp_utl.plot_corr(grp,xvar,'PSPsamples')
             grp_utl.bar_panel(grp,xvar)
     #
     ########## NEXT STEPS: ################
-    # add max_spikes to grp.IF_variables?
+    # add max_spikes or max_freq to grp.IF_variables?
     ### If needed, can add back in newcolumn_name - to take care of drug concentration - from GrpAvgPopSpikeClass
 
                 
