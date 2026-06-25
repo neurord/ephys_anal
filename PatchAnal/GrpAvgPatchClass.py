@@ -40,7 +40,7 @@ class GrpPatch:
         #additional parameters.  FIXME: add to arg parser
         self.minimum_time=20#20 #5 min pre and 15 min follow-up
         self.slope_threshold=params.slope_thresh #fraction of change per sec.  Same as .0012 /minute or .036 in 30 min.
-        self.nan_threshold=10 
+        self.nan_threshold=10
         self.baseline_min=0#0.4
         self.baseline_max=2
         self.print_info=1 
@@ -48,6 +48,7 @@ class GrpPatch:
         self.fname_vars=['region','genotype','sex','drug']
         self.IVIF_variables=['Im','Vm','latency','num_spikes']
         self.IF_variables=['risetime', 'Vthresh', 'APheight', 'APwidth', 'AHP_amp', 'AHP_t']
+        self.vary_anal_pars=['IOrange','decay','digstim','psp_end','base_time','ss_dur']
 
     def dates(self,datestring,separator):
         if separator:
@@ -103,7 +104,8 @@ class GrpPatch:
                     IO={'amp':{'H2':[],'H1':[]}} #empty dictionary
                 celltype=exper_param['celltype']
                 print_params={k:v for k,v in exper_param.items() if not isinstance(v,dict) or k=='celltype'}
-                anal_file.append(print_params | {'IOrange':anal_params['IOrange'],'decay':anal_params['decay'],'digstim':anal_params['digstim']})
+                anal_file_dict={par: anal_params[par] if par in anal_params else np.nan for par in self.vary_anal_pars }
+                anal_file.append(print_params | anal_file_dict)
             if self.print_info and 'slope' in data.keys():
                 print ("file read:", print_params,", baseline slope=", [round(sl,6) for sl in data['slope'].values()])
             ########## identify experiments that do not meet includsion criteria, extract values for single cell/headstage ##########
@@ -139,7 +141,7 @@ class GrpPatch:
             self.single_params.append(col)
         self.single_params.remove('pre_num')
         anal_df=pd.DataFrame.from_dict(anal_file)
-        anal_df.to_csv('anal_params.csv',index=False) #data file with experimental parameters needed to re-analyze experiments in batch model
+        anal_df.to_csv(self.subdir+'anal_params.csv',index=False) #data file with experimental parameters needed to re-analyze experiments in batch model
 
     def ignore(self):
         ############ Select subset of files based on user specified criteria ##########  
@@ -438,7 +440,7 @@ class GrpPatch:
         return filnm      
 
 if __name__ =='__main__':        
-    #ARGS = "Surgery_record -plot_ctrl 001"      #-sex FC -age 75
+    #ARGS = "Surgery_record -plot_ctrl 111"      #-sex FC -age 75
     exclude_name=[] #['theta'] #use to exclude variable(s) from column name in _points files	        
     try:
         commandline = ARGS.split() #in python: define space-separated ARGS string
