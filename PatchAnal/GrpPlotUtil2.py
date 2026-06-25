@@ -106,10 +106,15 @@ def plot_onegroup(grp,yvars,factors,symbol=None):
                 ymax=max(ymax,np.nanmax(yvals))
                 ymin=min(ymin,np.nanmin(yvals))
         for col in range(numcols): 
-            if ymin<0: #RMP
+            if yvar=='RMP':
                 axes[row*numcols+col].set_ylim([round(1.05*ymin),0])
-            elif ymin>=0: #Raccess
+            elif yvar=='Raccess': 
                 axes[row*numcols+col].set_ylim([0,round(1.05*ymax)])
+            else:
+                if ymin<=0:
+                    axes[row*numcols+col].set_ylim([round(1.05*ymin),round(1.05*ymax)])
+                else:
+                    axes[row*numcols+col].set_ylim([round(0.95*ymin),round(1.05*ymax)])
     for col in range(numcols): #only add xlabel and legend to bottom row
         axes[row*numcols+col].set_xlabel('time')
         axes[row*numcols+col].legend()
