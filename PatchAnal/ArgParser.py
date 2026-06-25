@@ -43,6 +43,7 @@ def ArgParserPatch(commandline,do_exit,flag=0):
         parser.add_argument('-threshval',type=float,help='Vm at earliest point that rise exceeds 2% of max risetime', default=0.02) #with 5%, bigger AHP, smalle spike
         parser.add_argument('-PSP_interval',type=int,help='time between PSP baseline traces, if no notebook file', default=30) #with 5%, bigger AHP, smalle spike
         parser.add_argument("-decay", type = float, help='stimulation artifact decay time, in sec', default = 0.002) #includes time for AP if one occurs
+        parser.add_argument("-psp_end", type = float, help='stop searching for PSP peak here, in sec', default = 0.025) #end search for PSP peak X ms after start point, avoids late peaks when multiple PSPs
         parser.add_argument("-base_time", type = float, help='duration for calculating baseline (pre-induction) PSP amplitude', default = 10) #includes time for AP if one occurs
         parser.add_argument("-induction", type=str, choices=["ThetaBurst", "20Hz", 'None'], help='name of induction protocol', default = 'ThetaBurst')
     ### next set relates to whether a compound EPSP is observed
