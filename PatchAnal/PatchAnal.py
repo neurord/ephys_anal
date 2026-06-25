@@ -14,7 +14,7 @@ HEADSTAGE_I={'H1':'_S1_', 'H2':'_S3_'}
 CURRENT_THRESH=5e-12 #detect current injection with 5 picoAmp change in channels S1 or S3
 SEC_PER_MSEC=0.001 #global
 capacitive_artifact_points=2 
-bad_psp=-25e-3 #above this value, probably an AP, not a PSP
+bad_psp=-25e-3 #above this value, probably an AP, not a PSP - better to reject of peakpt of PSP = 1st point where search begins
 MEASURES=['Timer_Time','Seg_start_time'] #code assumes that Seg_start_time indicates time of digital stimulation
 stim_per_burst=4 #FIXME: for theta burst - different value for LTD - add to ArgParser
 
@@ -50,6 +50,7 @@ class PatchAnal():
         self.artifact_decay=params.decay #time for decay of stimulation artifact
         self.induction=params.induction
         self.baseline_time=params.base_time
+        self.psp_end=params.psp_end
         if len(params.headstages)==len(params.celltype): 
             self.celltype={h:params.celltype[i] for i,h in enumerate(self.headstages)}
         else:
@@ -59,7 +60,7 @@ class PatchAnal():
         self.anal_params={
                      'PSPstart':self.PSPstart, 'basestart': self.basestart, 'base_dur':self.base_dur, 'ss_dur': self.ss_dur, 'base_time': self.baseline_time,
                      'window': self.window, 'IOrange':np.array(self.IOrange),'digstim':self.digstim, 'threshval': self.threshval, 'decay':self.artifact_decay,
-                     'APthresh':self.APthresh,'refract':self.refract,'max_risetime':self.max_risetime,'min_risetime':self.min_risetime}
+                     'APthresh':self.APthresh,'refract':self.refract,'max_risetime':self.max_risetime,'min_risetime':self.min_risetime, 'psp_end':self.psp_end}
 
     def read_datafile(self,question=True): #NOTE: create separate read_datafile if reading exported ibw files
         self.filename=self.datadir+self.experiment+self.filename_ending 
@@ -500,6 +501,7 @@ class PatchAnal():
         onset={h:{} for h in self.headstages} #time within sweep that current starts and stops
         offset={h:{} for h in self.headstages}
         for headstage in self.Vm_IV_IF.keys():
+            prior_spikes=False
             for r in self.Vm_IV_IF[headstage].keys():
                 spikes_sweep=[];APfreq=[]
                 self.IV_dt[r]=self.get_dt(self.IV_IF_dict[r])
@@ -528,13 +530,25 @@ class PatchAnal():
                 latency=[np.nan for i in range(len(spikes_sweep))]
                 for i,sweep in self.IV_IF_spikes[headstage][r].items(): #use -1 instead of nan??
                     latency[i]=sweep.APtime[0]
-                self.IV_IF[headstage][r]=np.rec.fromarrays((Im,Vm,rect,spikes_sweep,latency,mean_height,mean_width,mean_ahp,mean_ahpt,APfreq),
+                if np.max(spikes_sweep) > 0 and 'IV_CC' in r: #some traces from IV (mostly negative current) also have some positive current with action potentials.  #FIXME: hardcoded name of IV curves
+                    pos_index=np.min(np.where(Im>1e-12))
+                    suppl=np.rec.fromarrays((Im[pos_index:],Vm[pos_index:],rect[pos_index:],spikes_sweep[pos_index:],latency[pos_index:],
+                                                            mean_height[pos_index:],mean_width[pos_index:],mean_ahp[pos_index:],mean_ahpt[pos_index:],APfreq[pos_index:]),
                                                            names='Im,Vm,rect,num_spikes,latency,APheight,APwidth,AHP_amp,AHP_time,APfreq')
+                    prior_spikes=True
+                else:
+                    pos_index=len(Im) #If either IF_CC or no spikes in IV_CC
+                self.IV_IF[headstage][r]=np.rec.fromarrays((Im[0:pos_index],Vm[0:pos_index],rect[0:pos_index],spikes_sweep[0:pos_index],latency[0:pos_index],
+                                                            mean_height[0:pos_index],mean_width[0:pos_index],mean_ahp[0:pos_index],mean_ahpt[0:pos_index],APfreq[0:pos_index]),
+                                                           names='Im,Vm,rect,num_spikes,latency,APheight,APwidth,AHP_amp,AHP_time,APfreq')
+                if 'IF_CC' in r and prior_spikes:   #FIXME: won't work if IF_CC comes before IV_CC
+                    from numpy.lib.recfunctions import stack_arrays
+                    self.IV_IF[headstage][r]=stack_arrays((suppl, self.IV_IF[headstage][r]), asrecarray=True, usemask=False)
                 #values that are once per routine.  add in: IR per sweep=Vm/Im, frequency?  or calculate later
-                if np.max(spikes_sweep)>0:
-                    self.max_latency[headstage][r]=np.nanmax(latency)  #or if latency=-1, can just use np.max
-                    lowest_spike=np.min(np.where(np.array(spikes_sweep)>0))
-                    self.rheobase[headstage][r]=Im[lowest_spike]
+                if np.max(self.IV_IF[headstage][r].num_spikes)>0:
+                    self.max_latency[headstage][r]=np.nanmax(self.IV_IF[headstage][r].latency)  #or if latency=-1, can just use np.max
+                    lowest_spike=np.min(np.where(self.IV_IF[headstage][r].num_spikes>0)) #replace with recarray which has values from IV_CC if needed
+                    self.rheobase[headstage][r]=self.IV_IF[headstage][r].Im[lowest_spike]
                 onset[headstage][r]=inj_startpt*self.IV_dt[r] 
                 offset[headstage][r]=inj_endpt*self.IV_dt[r]
         self.params['IV_onset']=onset
@@ -593,11 +607,16 @@ class PatchAnal():
                     trace_num+=1
 
     def psp_detect(self, r, num, dt, stim_start):
+        psp_endpt=int(self.psp_end/dt) #
         trace=self.data['Data'][r].__array__()[:,num]
-        peakpt=np.argmax(trace[ stim_start:])+ stim_start
+        peakpt=np.argmax(trace[ stim_start:stim_start+psp_endpt])+ stim_start
         maxvm=np.mean(trace[peakpt-self.window:peakpt+self.window])
-        if maxvm>bad_psp: #an AP occurred.  This might not be best criteria 
+        if maxvm>bad_psp or peakpt==stim_start: #an AP occurred.  This might not be best criteria 
             maxvm=np.nan 
+        peak2_i = trace[psp_endpt:].argmax() + psp_endpt
+        maxvm2=np.mean(trace[peak2_i-self.window:peak2_i+self.window])
+        if maxvm2>maxvm:
+            print('*** 2nd peak detected in',num,'trace of',r, '1st peak=',maxvm,'at',peakpt*dt,'2nd peak=',maxvm2,'at',peak2_i*dt)
         basestartpt=stim_start-int(self.basestart/dt)  #basestart is duration prior to event 
         base_endpt=basestartpt+int(self.base_dur/dt)
         RMP=np.mean(trace[basestartpt:base_endpt])
@@ -685,7 +704,7 @@ class PatchAnal():
             np.savez(outfname, trace=tracedict,params=self.params,data=data_dict,IV_IF=IV_IFsummary,anal_params=self.anal_params,IO=IOsummary)
 
 if __name__=='__main__':
-    #ARGS='250704_1 -headstages H2 -celltype D1-SPN -decay .003 -base_time 5'
+    #ARGS='260429_0 -digstim 1.5 -decay 0.003 -headstages H2 -celltype D1-SPN -IOrange 0.2 1.  1.5 2.  1.8 1.5' 
     try:
         commandline = ARGS.split() 
         do_exit = False
